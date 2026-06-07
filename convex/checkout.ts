@@ -249,6 +249,7 @@ export const createDraftOrder = mutation({
       currency: "CAD",
       shippingAddress,
       pickupLocationId,
+      cartId: cart._id,
     });
 
     for (const { variant, product, item } of lines) {

@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useConvexAuth, useMutation, useQuery } from "convex/react";
+import { useAction, useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useUser } from "@clerk/nextjs";
 import { Truck, Storefront, SpinnerGap, Warning } from "@phosphor-icons/react";
 import { api } from "@/convex/_generated/api";
@@ -38,7 +37,6 @@ const emptyAddress = {
 };
 
 export function CheckoutClient() {
-  const router = useRouter();
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const { anonId, ensureAnonId } = useAnonId();
   const { user } = useUser();
@@ -50,6 +48,7 @@ export function CheckoutClient() {
   const [error, setError] = useState<string | null>(null);
 
   const createDraftOrder = useMutation(api.checkout.createDraftOrder);
+  const startCheckout = useAction(api.payments.createCheckoutSession);
 
   // Prefill email for signed-in shoppers.
   useEffect(() => {
@@ -118,7 +117,11 @@ export function CheckoutClient() {
               }
             : undefined,
       });
-      router.push(`/checkout/success?orderId=${orderId}`);
+      const { url } = await startCheckout({
+        orderId,
+        origin: window.location.origin,
+      });
+      window.location.href = url;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
       setPlacing(false);
@@ -335,11 +338,11 @@ export function CheckoutClient() {
               {placing ? (
                 <SpinnerGap className="size-4 animate-spin" />
               ) : (
-                "Place order"
+                "Continue to payment"
               )}
             </Button>
             <p className="text-center text-xs text-muted-foreground">
-              Payment is added in the next step.
+              You will be redirected to our secure Stripe checkout.
             </p>
           </>
         )}

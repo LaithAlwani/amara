@@ -153,6 +153,7 @@ export default defineSchema({
     currency: v.literal("CAD"),
     shippingAddress: v.optional(addressValidator), // required for ship
     pickupLocationId: v.optional(v.id("pickupLocations")), // set for pickup
+    cartId: v.optional(v.id("carts")), // source cart, cleared when paid
     stripeCheckoutSessionId: v.optional(v.string()),
     stripePaymentIntentId: v.optional(v.string()),
     paidAt: v.optional(v.number()),

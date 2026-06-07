@@ -827,6 +827,21 @@ Every decision should answer:
 2. Ship requires an address; pickup shows the Ottawa studio. Enter your email → **Place order**.
 3. You land on `/checkout/success` with an `AMARA-####` number and a pending badge; check the Convex dashboard → `orders` for the pending row.
 
+## Phase 6 — Stripe payment ✅ (built; needs keys to test) (2026-06-06)
+**Done:**
+- **`convex/payments.ts` (`"use node"`):** `createCheckoutSession` (action) builds a hosted Stripe Checkout Session from the order (line items + Shipping + Tax lines so the Stripe total equals the order total), attaches the session id, returns the URL; `handleStripeWebhook` (internalAction) verifies the signature and dispatches events.
+- **`convex/http.ts`:** `POST /stripe/webhook` on the Convex `.site` domain → verifies + runs the handler. Confirmed live (no-sig → 400).
+- **`convex/orders.ts` (internal):** `getOrderForStripe`, `attachStripeSession`, **`finalizeOrderPaid`** (idempotent via `webhookEvents`: marks order `paid`, sets `paidAt`/payment intent, **decrements inventory**, **clears the source cart**), `cancelPendingOrder` (expired/failed → `cancelled`).
+- **Schema:** added `orders.cartId` so the webhook clears the exact cart.
+- **UI:** checkout "Continue to payment" now creates the draft order then redirects to Stripe; `/checkout/success` is a **reactive** confirmation (live `pending` → `paid`, no refresh); added `/checkout/cancel`.
+
+**Webhook URL:** `https://proficient-narwhal-277.convex.site/stripe/webhook`
+**Subscribe to:** `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`.
+
+**Needed to test (set on the Convex deployment, not Vercel):** `STRIPE_SECRET_KEY` (test mode) and `STRIPE_WEBHOOK_SECRET`. Local testing uses the Stripe CLI to forward events and provide the signing secret.
+
+**How to test Phase 6:** with keys set + `stripe listen --forward-to https://proficient-narwhal-277.convex.site/stripe/webhook`, check out with test card `4242 4242 4242 4242` → redirect to Stripe → return to `/checkout/success` → order flips `pending`→`paid`, inventory drops, cart empties. Replay the event → no double processing.
+
 **How to test Phase 2:** dev server is running at http://localhost:3000.
 1. Home renders in the forest-botanical palette with working nav/footer.
 2. Click **Sign in** → branded `/sign-in` (Amara-styled, not default Clerk widget); create an account at `/sign-up`, verify the email code.
