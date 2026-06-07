@@ -1,26 +1,141 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
+
+/* Amara — forest-botanical design tokens (taste-skill).
+   One locked accent (warm clay) on a forest + bone base. Light is primary;
+   dark is the auto counterpart via prefers-color-scheme (no per-section flips). */
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-heading: var(--font-sans);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  /* the single brand accent */
+  --color-clay: var(--clay);
+  --color-clay-foreground: var(--clay-foreground);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+}
+
+:root {
+  --radius: 0.75rem;
+
+  --background: #f4f1ea; /* bone */
+  --foreground: #14241a; /* ink (near-black green) */
+  --card: #faf8f2;
+  --card-foreground: #14241a;
+  --popover: #faf8f2;
+  --popover-foreground: #14241a;
+  --primary: #1f3d2b; /* forest */
+  --primary-foreground: #f4f1ea;
+  --secondary: #e6e1d4;
+  --secondary-foreground: #1f3d2b;
+  --muted: #e6e1d4;
+  --muted-foreground: #5b6157;
+  --accent: #ebe2d3; /* subtle warm hover surface (NOT the brand accent) */
+  --accent-foreground: #1f3d2b;
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: #dcd6c8;
+  --input: #dcd6c8;
+  --ring: #1f3d2b;
+
+  --clay: #c56a45; /* the one locked accent */
+  --clay-foreground: #fbfaf6;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #0f1511; /* near-black green */
+    --foreground: #eceae0; /* light bone */
+    --card: #16201a;
+    --card-foreground: #eceae0;
+    --popover: #16201a;
+    --popover-foreground: #eceae0;
+    --primary: #8fb89b; /* lifted sage for contrast on dark */
+    --primary-foreground: #0f1511;
+    --secondary: #23302a;
+    --secondary-foreground: #eceae0;
+    --muted: #23302a;
+    --muted-foreground: #9ca89e;
+    --accent: #23302a;
+    --accent-foreground: #eceae0;
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(1 0 0 / 12%);
+    --input: oklch(1 0 0 / 16%);
+    --ring: #8fb89b;
+
+    --clay: #d98a66; /* lifted clay for dark */
+    --clay-foreground: #15110e;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Explicit .dark class mirrors the auto values for a future theme toggle. */
+.dark {
+  --background: #0f1511;
+  --foreground: #eceae0;
+  --card: #16201a;
+  --card-foreground: #eceae0;
+  --popover: #16201a;
+  --popover-foreground: #eceae0;
+  --primary: #8fb89b;
+  --primary-foreground: #0f1511;
+  --secondary: #23302a;
+  --secondary-foreground: #eceae0;
+  --muted: #23302a;
+  --muted-foreground: #9ca89e;
+  --accent: #23302a;
+  --accent-foreground: #eceae0;
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: #8fb89b;
+  --clay: #d98a66;
+  --clay-foreground: #15110e;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+  /* Branded selection */
+  ::selection {
+    background: var(--clay);
+    color: var(--clay-foreground);
+  }
+}
+
+@layer components {
+  /* Small uppercase label used sparingly (taste-skill eyebrow restraint). */
+  .eyebrow {
+    @apply text-xs font-medium uppercase tracking-[0.18em] text-clay;
+  }
 }
