@@ -238,6 +238,7 @@ export default defineSchema({
     }),
     taxRatePpm: v.optional(v.number()), // parts-per-million; 130000 = 13% HST
     activeShippingProvider: v.union(v.literal("shippo")),
+    orderSeq: v.optional(v.number()), // running counter for human order numbers
   }).index("by_key", ["key"]),
 
   webhookEvents: defineTable({

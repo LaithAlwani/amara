@@ -7,7 +7,7 @@ import { primaryImage } from "./catalog";
 
 // Find the caller's open cart (read-only). Logged-in users are keyed by their
 // Clerk tokenIdentifier; guests by the anon cookie value. Returns null if none.
-async function findOpenCart(
+export async function findOpenCart(
   ctx: QueryCtx,
   anonId?: string,
 ): Promise<Doc<"carts"> | null> {

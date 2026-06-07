@@ -809,6 +809,24 @@ Every decision should answer:
 3. As a guest, add items, then **sign in** → the guest bag merges into your account (count persists).
 4. Reload while signed out → the bag persists via the `amara_anon_id` cookie.
 
+## Phase 5 — Checkout core ✅ (2026-06-06)
+**Done:**
+- **Convex (`convex/checkout.ts`):** `quoteCart` (live, authoritative subtotal/shipping/tax/total for a chosen method + stock-issue detection + pickup location), `createDraftOrder` (re-validates inventory, snapshots `orderItems`, applies flat shipping for ship / $0 for pickup, computes 13% HST, links `userId` when signed in, sets `emailVerifiedAtPurchase`, creates a **pending** order), `getActivePickupLocation`, `getOrderConfirmation` (by order id capability).
+- **Order numbers:** running counter `orderSeq` on the `settings` singleton → `AMARA-1001`, ... (OCC-safe).
+- **UI:** `components/checkout/checkout-client.tsx` — contact email (prefilled when signed in), **Ship vs Local pickup toggle**, Canadian address form (province select), live order summary, stock warnings, and "Place order"; `/checkout` page + `/checkout/success` (server-rendered confirmation by `orderId`, 404 without).
+- **Verified via CLI:** quote pickup = $28.00 + $0 + $3.64 = $31.64; ship = + $11.99 + $5.20 = $45.19; `createDraftOrder` → `AMARA-1001` pending with pickup location; confirmation + `/checkout/success?orderId=` render. Build green, dev log 0 errors.
+
+**Added/changed vs blueprint:**
+- Free-shipping threshold is seeded in settings but **not applied** — shipping stays a flat $11.99 per your instruction.
+- Order id is treated as an unguessable capability for the confirmation screen (no auth needed to view a fresh confirmation).
+
+**Deferred to Phase 6:** **no payment yet** — "Place order" creates a pending order and the cart is intentionally **not cleared** (the Stripe webhook will clear it and flip the order to paid). The success page shows an "awaiting payment" badge for now.
+
+**How to test Phase 5:** dev server at http://localhost:3000.
+1. Add items, go to `/checkout`. Toggle **Ship** vs **Local pickup**: the summary shipping/tax/total update live ($11.99 vs Free).
+2. Ship requires an address; pickup shows the Ottawa studio. Enter your email → **Place order**.
+3. You land on `/checkout/success` with an `AMARA-####` number and a pending badge; check the Convex dashboard → `orders` for the pending row.
+
 **How to test Phase 2:** dev server is running at http://localhost:3000.
 1. Home renders in the forest-botanical palette with working nav/footer.
 2. Click **Sign in** → branded `/sign-in` (Amara-styled, not default Clerk widget); create an account at `/sign-up`, verify the email code.

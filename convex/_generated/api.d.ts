@@ -10,6 +10,7 @@
 
 import type * as cart from "../cart.js";
 import type * as catalog from "../catalog.js";
+import type * as checkout from "../checkout.js";
 import type * as collections from "../collections.js";
 import type * as products from "../products.js";
 import type * as seed from "../seed.js";
@@ -24,6 +25,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   cart: typeof cart;
   catalog: typeof catalog;
+  checkout: typeof checkout;
   collections: typeof collections;
   products: typeof products;
   seed: typeof seed;
