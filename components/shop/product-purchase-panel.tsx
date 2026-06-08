@@ -38,14 +38,19 @@ export function ProductPurchasePanel({ variants }: { variants: Variant[] }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-baseline gap-3">
+      <div className="flex items-center gap-3">
         <span className="text-2xl font-medium">
           {formatPrice(selected.priceCents)}
         </span>
         {onSale ? (
-          <span className="text-base text-muted-foreground line-through">
-            {formatPrice(selected.compareAtCents!)}
-          </span>
+          <>
+            <span className="text-base text-muted-foreground line-through">
+              {formatPrice(selected.compareAtCents!)}
+            </span>
+            <span className="rounded-full bg-clay px-2.5 py-1 text-xs font-medium text-clay-foreground">
+              Save {formatPrice(selected.compareAtCents! - selected.priceCents)}
+            </span>
+          </>
         ) : null}
       </div>
 

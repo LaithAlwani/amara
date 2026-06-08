@@ -885,3 +885,17 @@ Every decision should answer:
 3. Open a **pickup** order (1007/1008) → **Mark ready for pickup** (status updates live; customer gets a "ready for pickup" email) → **Mark picked up** (order → `fulfilled`, email sent).
 4. Open a **ship** order (1005) → **Mark shipped** (order → `fulfilled`, "on its way" email).
 5. Emails require SMTP env (Phase 7); without it the Convex logs show the `[emails] SMTP not configured…` skip line.
+
+## Phase 9 — Products & inventory admin ✅ (2026-06-08)
+**Done:**
+- **Catalog CRUD backend** — `convex/adminCatalog.ts` (all `requireAdmin`-gated; `requireAdmin` now exported from `convex/admin.ts`): `listProducts` (every status, with per-product rollups — variant count, total on-hand, low-stock count, price range), `getProduct` (product + variants), `createProduct`/`updateProduct` (slug-uniqueness checked via `by_slug`), `setProductStatus` (quick active/draft/archived flip), and variant ops `createVariant`/`updateVariant`/`deleteVariant`. Stock is edited as an absolute on-hand value via `updateVariant` (no separate adjust API). `LOW_STOCK_THRESHOLD = 5`.
+- **Admin UI** — added **Products** to the admin nav. `/admin/products` list (`admin-products.tsx`: thumbnail, status badge, variant count, on-hand stock + low-stock flag, price range). Create flow `/admin/products/new` (`product-create.tsx` → shared `product-form.tsx`, auto-slug from name, price entered in dollars → cents, image URLs one-per-line) then redirects to edit. Edit screen `/admin/products/[productId]` (`admin-product-detail.tsx`): product form + `variant-manager.tsx` (per-variant edit/save/delete with low-stock warning, active toggle, options size/scent, and an add-variant form). Shared `product-status.tsx` badges + `LOW_STOCK` mirror.
+- `tsc` clean; `eslint` clean; `next build` green (all 3 product routes compile); Convex deployed.
+
+**Deferred:** image uploads to Convex storage (currently URL strings — `imageStorageIds` field already exists for later); rule-based collections; hard product delete (use Archive — orders reference products/variants by id).
+
+**How to test Phase 9:** signed in as an admin, go to **Admin → Products** (`/admin/products`).
+1. The 6 seeded products list with status, variant count, on-hand stock (low-stock flagged ≤5), and price range.
+2. **New product** → fill the form (slug auto-fills from name) → Create → lands on the edit screen → **Add a variant** (title/SKU/price/stock/weight) → it appears in the live list.
+3. Edit an existing product's price/description/status → **Save product** → reflected in the list and on the storefront (active products only).
+4. Edit a variant's **Stock** to ≤5 → low-stock warning appears here and on the list; set a product to **Archived** → it drops off the storefront but stays in admin.

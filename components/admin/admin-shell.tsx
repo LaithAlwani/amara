@@ -8,7 +8,10 @@ import { SpinnerGap } from "@phosphor-icons/react";
 import { api } from "@/convex/_generated/api";
 import { cn } from "@/lib/utils";
 
-const ADMIN_NAV = [{ href: "/admin/orders", label: "Orders" }];
+const ADMIN_NAV = [
+  { href: "/admin/orders", label: "Orders" },
+  { href: "/admin/products", label: "Products" },
+];
 
 // Client-side admin gate. The real security boundary is `requireAdmin` inside
 // every admin Convex function; this just keeps non-admins from seeing the shell.

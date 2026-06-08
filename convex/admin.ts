@@ -6,7 +6,9 @@ import { Doc, Id } from "./_generated/dataModel";
 // The server-side authorization boundary for every admin operation. Route
 // guards (proxy.ts) only ensure a user is signed in — actual admin access is
 // enforced here, so even a hand-crafted client call is rejected.
-async function requireAdmin(ctx: QueryCtx | MutationCtx): Promise<Doc<"users">> {
+export async function requireAdmin(
+  ctx: QueryCtx | MutationCtx,
+): Promise<Doc<"users">> {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) throw new Error("Not authenticated");
   const user = await ctx.db
