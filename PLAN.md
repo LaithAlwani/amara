@@ -866,3 +866,22 @@ Every decision should answer:
 1. **Order history:** sign in → account menu → **My orders** (`/account/orders`). Past orders linked to your account list newest-first with status pills.
 2. **Guest claiming:** the live data already has unclaimed orders for `laithalwani@gmail.com` (AMARA-1002/1003/1005) with no `userId` — on sign-in they auto-link and appear in *My orders* (guest@example.com's AMARA-1001 stays unclaimed). Verify in the Convex dashboard → `orders` that `userId` got set.
 3. **Email:** with SMTP env set, place + pay an order (Phase 6 flow) → a confirmation email arrives at the order email (and `MAIL_TO` if set). Without SMTP set, the Convex logs show `[emails] SMTP not configured; would send confirmation for AMARA-#### to …` (everything else still works).
+
+## Phase 8 — Admin order management + pickup fulfillment ✅ (built; Shippo deferred) (2026-06-08)
+**Done:**
+- **Admin security boundary** — `convex/admin.ts` `requireAdmin(ctx)` asserts the caller's `users.role === "admin"` and gates every admin function (the route guard in `proxy.ts` only checks *signed-in*). `amIAdmin` query lets the UI decide render-vs-redirect without leaking an error.
+- **Admin order APIs** — `listOrders` (newest-first, optional `status` filter via `by_status`, hides `pending` drafts by default) and `getOrder` (full detail: items, customer, ship-to/pickup, totals, payment intent).
+- **Fulfillment transitions** (paid-only, method-checked, each schedules a customer email): `markReadyForPickup` + `markPickedUp` (pickup → `fulfilled`) and `markShipped` (ship → `fulfilled`). Tracking/labels come with Shippo later.
+- **Fulfillment emails** — `convex/emails.ts` refactored so `renderHtml` takes `{heading, intro}`; new `sendFulfillmentEmail` action covers `ready_for_pickup` / `picked_up` / `shipped` (reuses the branded receipt + SMTP transport; dev-safe skip).
+- **Role ops** — `users.setUserRole` internalMutation (`npx convex run users:setUserRole '{"email":"…","role":"admin"}'`). Promoted `laithalwani@gmail.com` + `laitho15@gmail.com` to admin.
+- **Admin UI** — `app/admin/layout.tsx` → `components/admin/admin-shell.tsx` (client gate on `amIAdmin`, redirects non-admins, admin nav, `noindex`); `/admin/orders` list with filter tabs (`admin-orders.tsx`); `/admin/orders/[orderId]` detail with action buttons + toasts (`admin-order-detail.tsx`); shared `order-status.tsx` badges. Header already links admins to `/admin/orders`.
+- `tsc` clean; `next build` green (both admin routes compile); Convex deployed.
+
+**Deferred to a later phase:** Shippo shipping-label adapter (`convex/shipping/`), real carrier rates/labels/tracking PDFs. `markShipped` is a manual transition until then.
+
+**How to test Phase 8:** dev server at http://localhost:3000, signed in as an admin (`laithalwani@`/`laitho15@`).
+1. Account menu → **Admin** (or visit `/admin/orders`). A non-admin / signed-out user is redirected away, and admin queries reject them server-side.
+2. The list shows real orders (paid AMARA-1005/1007/1008); use the **Paid / Fulfilled / Cancelled** tabs.
+3. Open a **pickup** order (1007/1008) → **Mark ready for pickup** (status updates live; customer gets a "ready for pickup" email) → **Mark picked up** (order → `fulfilled`, email sent).
+4. Open a **ship** order (1005) → **Mark shipped** (order → `fulfilled`, "on its way" email).
+5. Emails require SMTP env (Phase 7); without it the Convex logs show the `[emails] SMTP not configured…` skip line.

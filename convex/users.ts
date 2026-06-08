@@ -1,4 +1,11 @@
-import { mutation, query, MutationCtx, QueryCtx } from "./_generated/server";
+import {
+  mutation,
+  query,
+  internalMutation,
+  MutationCtx,
+  QueryCtx,
+} from "./_generated/server";
+import { v } from "convex/values";
 import { Doc, Id } from "./_generated/dataModel";
 
 // Resolve the local `users` row for the authenticated identity, if any.
@@ -85,5 +92,24 @@ export const getOrCreateCurrentUser = mutation({
     });
     await claimGuestOrders(ctx, userId, email, emailVerified);
     return userId;
+  },
+});
+
+// Ops: set a user's role by email. Internal-only (run from the Convex CLI/
+// dashboard) — there's no self-serve role management until the admin UI grows
+// one. E.g. `npx convex run users:setUserRole '{"email":"x@y.com","role":"admin"}'`.
+export const setUserRole = internalMutation({
+  args: {
+    email: v.string(),
+    role: v.union(v.literal("customer"), v.literal("admin")),
+  },
+  handler: async (ctx, { email, role }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", email.toLowerCase()))
+      .unique();
+    if (!user) throw new Error(`No user with email ${email}`);
+    await ctx.db.patch("users", user._id, { role });
+    return { ok: true, userId: user._id, role };
   },
 });

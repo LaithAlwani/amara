@@ -71,7 +71,10 @@ function buildTransport() {
   return nodemailer.createTransport({ host, port, secure, auth: { user, pass } });
 }
 
-function renderHtml(order: EmailOrder, audience: "customer" | "owner"): string {
+function renderHtml(
+  order: EmailOrder,
+  opts: { heading: string; intro: string },
+): string {
   const rows = order.items
     .map(
       (i) => `
@@ -113,20 +116,7 @@ function renderHtml(order: EmailOrder, audience: "customer" | "owner"): string {
            </p>`
         : "";
 
-  const heading =
-    audience === "owner" ? "New order received" : "Thank you for your order";
-  const intro =
-    audience === "owner"
-      ? `Order <strong style="color:#3f463f;">${escapeHtml(
-          order.orderNumber,
-        )}</strong> just came in from <strong style="color:#3f463f;">${escapeHtml(
-          order.email,
-        )}</strong> &mdash; ${
-          order.fulfillmentMethod === "pickup" ? "local pickup" : "shipping"
-        }.`
-      : `Order <strong style="color:#3f463f;">${escapeHtml(
-          order.orderNumber,
-        )}</strong> is confirmed. We'll email you again when it's on its way.`;
+  const { heading, intro } = opts;
 
   return `
   <div style="background:#f4f6f3;padding:32px 0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
@@ -205,7 +195,10 @@ export const sendOrderConfirmation = internalAction({
       from,
       to: order.email,
       subject: `Your Amara order ${order.orderNumber} is confirmed`,
-      html: renderHtml(order, "customer"),
+      html: renderHtml(order, {
+        heading: "Thank you for your order",
+        intro: `Order <strong style="color:#3f463f;">${order.orderNumber}</strong> is confirmed. We'll email you again when it's on its way.`,
+      }),
     });
 
     // Owner notification — every paid order. Prefer the explicit MAIL_TO inbox,
@@ -218,13 +211,78 @@ export const sendOrderConfirmation = internalAction({
         to: ownerTo,
         replyTo: order.email,
         subject: `New order ${order.orderNumber} — ${money(order.totalCents)}`,
-        html: renderHtml(order, "owner"),
+        html: renderHtml(order, {
+          heading: "New order received",
+          intro: `Order <strong style="color:#3f463f;">${order.orderNumber}</strong> just came in from <strong style="color:#3f463f;">${order.email}</strong> — ${
+            order.fulfillmentMethod === "pickup" ? "local pickup" : "shipping"
+          }.`,
+        }),
       });
     } else {
       console.warn(
         `[emails] no owner address (MAIL_TO/SMTP_USER) for ${order.orderNumber}; owner not notified`,
       );
     }
+
+    return null;
+  },
+});
+
+// Fulfillment-status notification to the customer (ready for pickup / picked up
+// / shipped). Scheduled from the admin order mutations in convex/admin.ts.
+export const sendFulfillmentEmail = internalAction({
+  args: {
+    orderId: v.id("orders"),
+    kind: v.union(
+      v.literal("ready_for_pickup"),
+      v.literal("picked_up"),
+      v.literal("shipped"),
+    ),
+  },
+  handler: async (ctx, { orderId, kind }) => {
+    const order = await ctx.runQuery(internal.orders.getOrderForEmail, {
+      orderId,
+    });
+    if (!order) {
+      console.warn(`[emails] order ${orderId} not found; skipping ${kind}`);
+      return null;
+    }
+
+    const transport = buildTransport();
+    if (!transport) {
+      console.warn(
+        `[emails] SMTP not configured; would send "${kind}" for ${order.orderNumber} to ${order.email}`,
+      );
+      return null;
+    }
+
+    const num = `<strong style="color:#3f463f;">${order.orderNumber}</strong>`;
+    const copy: Record<typeof kind, { subject: string; heading: string; intro: string }> = {
+      ready_for_pickup: {
+        subject: `Your Amara order ${order.orderNumber} is ready for pickup`,
+        heading: "Ready for pickup",
+        intro: `Good news — order ${num} is packed and ready for pickup. See the location and hours below.`,
+      },
+      picked_up: {
+        subject: `Thanks for picking up your Amara order ${order.orderNumber}`,
+        heading: "Picked up — thank you",
+        intro: `Order ${num} has been picked up. We hope you love it; thank you for shopping with Amara.`,
+      },
+      shipped: {
+        subject: `Your Amara order ${order.orderNumber} is on its way`,
+        heading: "Your order has shipped",
+        intro: `Order ${num} is on its way. We'll follow up if there's tracking to share.`,
+      },
+    };
+    const { subject, heading, intro } = copy[kind];
+
+    const from = process.env.MAIL_FROM ?? "Amara <orders@amara.test>";
+    await transport.sendMail({
+      from,
+      to: order.email,
+      subject,
+      html: renderHtml(order, { heading, intro }),
+    });
 
     return null;
   },
