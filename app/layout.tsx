@@ -4,6 +4,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 import { ConvexClientProvider } from "@/components/providers/convex-client-provider";
 import { CartProvider } from "@/components/providers/cart-provider";
+import { ConfirmProvider } from "@/components/providers/confirm-provider";
 import { StoreUser } from "@/components/providers/store-user";
 import { SiteHeader } from "@/components/site/site-header";
 import { SiteFooter } from "@/components/site/site-footer";
@@ -42,11 +43,13 @@ export default function RootLayout({
         <body className="flex min-h-full flex-col">
           <ConvexClientProvider>
             <CartProvider>
-              <StoreUser />
-              <SiteHeader />
-              <main className="flex-1">{children}</main>
-              <SiteFooter />
-              <Toaster />
+              <ConfirmProvider>
+                <StoreUser />
+                <SiteHeader />
+                <main className="flex-1">{children}</main>
+                <SiteFooter />
+                <Toaster />
+              </ConfirmProvider>
             </CartProvider>
           </ConvexClientProvider>
         </body>

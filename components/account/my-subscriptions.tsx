@@ -9,6 +9,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import { formatPrice } from "@/lib/format";
 
 const dateFmt = new Intl.DateTimeFormat("en-CA", {
@@ -47,6 +48,7 @@ export function MySubscriptions() {
   const pause = useAction(api.payments.pauseSubscription);
   const resume = useAction(api.payments.resumeSubscription);
   const cancel = useAction(api.payments.cancelSubscription);
+  const confirm = useConfirm();
   const [busyId, setBusyId] = useState<string | null>(null);
 
   async function run(
@@ -148,8 +150,15 @@ export function MySubscriptions() {
                   size="sm"
                   variant="ghost"
                   disabled={busy}
-                  onClick={() => {
-                    if (!confirm("Cancel this subscription?")) return;
+                  onClick={async () => {
+                    const ok = await confirm({
+                      title: "Cancel this subscription?",
+                      description: "Your recurring deliveries will stop.",
+                      confirmText: "Cancel subscription",
+                      cancelText: "Keep it",
+                      destructive: true,
+                    });
+                    if (!ok) return;
                     run(id, cancel, "Subscription canceled");
                   }}
                 >

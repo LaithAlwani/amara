@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import { formatPrice } from "@/lib/format";
 
 const fieldClass =
@@ -28,6 +29,7 @@ export function AdminDiscounts() {
   const deleteCode = useMutation(api.discounts.deleteCode);
   const subDiscount = useQuery(api.discounts.getSubscriptionDiscount);
   const setSubDiscount = useMutation(api.discounts.setSubscriptionDiscount);
+  const confirm = useConfirm();
   const [subPct, setSubPct] = useState<string | null>(null);
   const subValue = subPct ?? (subDiscount !== undefined ? String(subDiscount) : "");
 
@@ -261,8 +263,14 @@ export function AdminDiscounts() {
                         size="sm"
                         variant="ghost"
                         aria-label="Delete"
-                        onClick={() => {
-                          if (!confirm(`Delete ${c.code}?`)) return;
+                        onClick={async () => {
+                          const ok = await confirm({
+                            title: `Delete ${c.code}?`,
+                            description: "This permanently removes the code.",
+                            confirmText: "Delete",
+                            destructive: true,
+                          });
+                          if (!ok) return;
                           deleteCode({ codeId: c._id as Id<"discountCodes"> })
                             .then(() => toast.success("Deleted"))
                             .catch((e) =>

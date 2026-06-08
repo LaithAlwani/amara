@@ -9,6 +9,7 @@ import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/providers/confirm-provider";
 import { LOW_STOCK } from "./product-status";
 
 type VariantValues = {
@@ -80,6 +81,7 @@ function VariantForm({
 
   const [f, setF] = useState(seed);
   const [busy, setBusy] = useState(false);
+  const confirm = useConfirm();
   const set = (k: keyof typeof f, val: string | boolean) =>
     setF((prev) => ({ ...prev, [k]: val }));
 
@@ -216,7 +218,13 @@ function VariantForm({
               size="sm"
               disabled={busy}
               onClick={async () => {
-                if (!confirm("Delete this variant?")) return;
+                const ok = await confirm({
+                  title: "Delete this variant?",
+                  description: "This removes the variant from the product.",
+                  confirmText: "Delete",
+                  destructive: true,
+                });
+                if (!ok) return;
                 setBusy(true);
                 try {
                   await onDelete();
