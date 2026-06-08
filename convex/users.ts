@@ -1,5 +1,5 @@
-import { mutation, query, QueryCtx } from "./_generated/server";
-import { Doc } from "./_generated/dataModel";
+import { mutation, query, MutationCtx, QueryCtx } from "./_generated/server";
+import { Doc, Id } from "./_generated/dataModel";
 
 // Resolve the local `users` row for the authenticated identity, if any.
 async function userByIdentity(
@@ -14,6 +14,27 @@ async function userByIdentity(
     .unique();
 }
 
+// Link any unclaimed guest orders for this email to the account. Claiming only
+// happens on a VERIFIED email match (blueprint §38), so a malicious unverified
+// signup can't hijack someone else's guest order history.
+async function claimGuestOrders(
+  ctx: MutationCtx,
+  userId: Id<"users">,
+  email: string,
+  emailVerified: boolean,
+): Promise<void> {
+  if (!emailVerified || !email) return;
+  const orders = await ctx.db
+    .query("orders")
+    .withIndex("by_email", (q) => q.eq("email", email))
+    .take(100);
+  for (const order of orders) {
+    if (order.userId === undefined) {
+      await ctx.db.patch("orders", order._id, { userId });
+    }
+  }
+}
+
 // Returns the current user's local row (or null if signed out / not yet stored).
 export const currentUser = query({
   args: {},
@@ -25,8 +46,8 @@ export const currentUser = query({
 });
 
 // Upsert the local user row from the Clerk identity. Called on app load when
-// signed in. Later phases extend this to claim guest orders (Phase 8) and merge
-// the anonymous cart (Phase 4).
+// signed in. Also claims any guest orders placed with this verified email.
+// (The anonymous cart merge lives in cart.mergeAnonCartIntoUser, Phase 4.)
 export const getOrCreateCurrentUser = mutation({
   args: {},
   handler: async (ctx) => {
@@ -48,10 +69,13 @@ export const getOrCreateCurrentUser = mutation({
       if (Object.keys(patch).length > 0) {
         await ctx.db.patch("users", existing._id, patch);
       }
+      // Email may have just become verified (or new guest orders placed since
+      // last login) — try claiming on every sign-in, not just first creation.
+      await claimGuestOrders(ctx, existing._id, email, emailVerified);
       return existing._id;
     }
 
-    return await ctx.db.insert("users", {
+    const userId = await ctx.db.insert("users", {
       tokenIdentifier: identity.tokenIdentifier,
       clerkUserId: identity.subject,
       email,
@@ -59,5 +83,7 @@ export const getOrCreateCurrentUser = mutation({
       name,
       role: "customer",
     });
+    await claimGuestOrders(ctx, userId, email, emailVerified);
+    return userId;
   },
 });

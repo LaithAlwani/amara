@@ -61,6 +61,10 @@ export const createCheckoutSession = action({
       metadata: { orderId, orderNumber: data.orderNumber },
       success_url: `${origin}/checkout/success?orderId=${orderId}`,
       cancel_url: `${origin}/checkout/cancel?orderId=${orderId}`,
+      // Expire after 30 min (Stripe's minimum). When it lapses, the
+      // `checkout.session.expired` webhook cancels the still-pending draft so
+      // abandoned orders don't linger as "awaiting payment".
+      expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
     });
 
     await ctx.runMutation(internal.orders.attachStripeSession, {

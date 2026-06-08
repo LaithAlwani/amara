@@ -827,7 +827,7 @@ Every decision should answer:
 2. Ship requires an address; pickup shows the Ottawa studio. Enter your email → **Place order**.
 3. You land on `/checkout/success` with an `AMARA-####` number and a pending badge; check the Convex dashboard → `orders` for the pending row.
 
-## Phase 6 — Stripe payment ✅ (built; needs keys to test) (2026-06-06)
+## Phase 6 — Stripe payment ✅ (built + TESTED end-to-end) (2026-06-06; tested 2026-06-08)
 **Done:**
 - **`convex/payments.ts` (`"use node"`):** `createCheckoutSession` (action) builds a hosted Stripe Checkout Session from the order (line items + Shipping + Tax lines so the Stripe total equals the order total), attaches the session id, returns the URL; `handleStripeWebhook` (internalAction) verifies the signature and dispatches events.
 - **`convex/http.ts`:** `POST /stripe/webhook` on the Convex `.site` domain → verifies + runs the handler. Confirmed live (no-sig → 400).
@@ -842,8 +842,27 @@ Every decision should answer:
 
 **How to test Phase 6:** with keys set + `stripe listen --forward-to https://proficient-narwhal-277.convex.site/stripe/webhook`, check out with test card `4242 4242 4242 4242` → redirect to Stripe → return to `/checkout/success` → order flips `pending`→`paid`, inventory drops, cart empties. Replay the event → no double processing.
 
+**Tested 2026-06-08 (laith):** Stripe CLI 1.42.1 installed (winget `Stripe.StripeCli`); `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` (from `stripe listen`) set on the Convex dev deployment. Live test card paid order **AMARA-1005** → `status:"paid"`, `paidAt` + `stripePaymentIntentId`/`stripeCheckoutSessionId` set, `orderItems` snapshotted, CCM-75 inventory `28→27`, source cart cleared + `status:"converted"`, one `webhookEvents` row recorded. **Idempotency confirmed:** `stripe events resend` left inventory at 27 (no double-decrement). Note: 4 older Phase-5 orders (AMARA-1001..1004) remain `pending` (pre-Stripe drafts; safe to cancel/clean up).
+
 **How to test Phase 2:** dev server is running at http://localhost:3000.
 1. Home renders in the forest-botanical palette with working nav/footer.
 2. Click **Sign in** → branded `/sign-in` (Amara-styled, not default Clerk widget); create an account at `/sign-up`, verify the email code.
 3. After sign-in, the account menu appears; open the Convex dashboard → `users` and confirm your row exists (email, `emailVerified`, `role: "customer"`).
 4. Visit `/account/orders` while signed out → you are redirected to `/sign-in` (proxy gate).
+
+## Phase 7 — Customer order loop ✅ (built; email needs SMTP to send) (2026-06-08)
+**Done:**
+- **Order-confirmation email** — `convex/emails.ts` (`"use node"`) `sendOrderConfirmation` internalAction builds an on-brand inline-styled HTML receipt (items, subtotal/shipping/tax/total, ship-to or pickup block) via **Nodemailer**. Sends **two** messages: the customer receipt ("Thank you for your order") and an **owner notification on every order** ("New order received" — surfaces the customer email + ship/pickup, `replyTo` the customer). Owner address = `MAIL_TO`, falling back to `SMTP_USER` so the owner is alerted even if `MAIL_TO` is unset. **Scheduled from `orders.finalizeOrderPaid`** via `ctx.scheduler.runAfter(0, …)` so it fires only on confirmed payment and rolls back with the txn. Dev-safe: if SMTP env is unset it logs + skips (no hard fail).
+- **Account order history** — `orders.listMyOrders` (identity-derived query, never takes a userId; `by_userId` index, newest-first); `app/account/orders/page.tsx` (server shell) + `components/account/my-orders.tsx` (reactive `useQuery`, status pills, loading/empty states). Route is behind the existing `proxy.ts` `/account/*` gate. **Only ever-paid orders are shown** — `pending` drafts and orders cancelled before payment (no `paidAt`) are filtered out, so an abandoned Stripe checkout never appears as "awaiting payment".
+- **Abandoned-draft cleanup** — `createCheckoutSession` sets `expires_at` to 30 min (Stripe minimum); when a checkout lapses, the existing `checkout.session.expired` webhook flips the still-pending order to `cancelled`. (We deliberately do NOT cancel on the `/checkout/cancel` page — the Stripe session can still be completed via browser back, and cancelling early would make `finalizeOrderPaid` skip a real payment.)
+- **Guest-order claiming** — `users.getOrCreateCurrentUser` now calls `claimGuestOrders`: on every sign-in, if the account email is **verified**, links unclaimed `orders` (`by_email`, `userId === undefined`) to the user. Verified-only per blueprint §38.
+- **Internal:** `orders.getOrderForEmail` internalQuery feeds the Node email action (action can't touch the db).
+- Installed `nodemailer` + `@types/nodemailer`. `npx tsc --noEmit` clean; `next build` green (`/account/orders` compiles); Convex functions deployed to dev.
+
+**Needed to send email (set on the Convex deployment, like the Stripe keys):**
+`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE` (`"true"`/`"false"`), `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`, and optionally `MAIL_TO` (owner inbox; defaults to `SMTP_USER` if unset). For dev, a catcher like **Mailtrap** or **Ethereal** works without a real mailbox.
+
+**How to test Phase 7:** dev server at http://localhost:3000.
+1. **Order history:** sign in → account menu → **My orders** (`/account/orders`). Past orders linked to your account list newest-first with status pills.
+2. **Guest claiming:** the live data already has unclaimed orders for `laithalwani@gmail.com` (AMARA-1002/1003/1005) with no `userId` — on sign-in they auto-link and appear in *My orders* (guest@example.com's AMARA-1001 stays unclaimed). Verify in the Convex dashboard → `orders` that `userId` got set.
+3. **Email:** with SMTP env set, place + pay an order (Phase 6 flow) → a confirmation email arrives at the order email (and `MAIL_TO` if set). Without SMTP set, the Convex logs show `[emails] SMTP not configured; would send confirmation for AMARA-#### to …` (everything else still works).

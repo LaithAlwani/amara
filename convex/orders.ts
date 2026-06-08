@@ -1,9 +1,13 @@
 import {
   internalMutation,
   internalQuery,
+  query,
   MutationCtx,
+  QueryCtx,
 } from "./_generated/server";
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
+import { Id } from "./_generated/dataModel";
 
 // --- Stripe payment plumbing (internal; called from convex/payments.ts) ----
 
@@ -119,7 +123,12 @@ export const finalizeOrderPaid = internalMutation({
       }
     }
 
-    // TODO(Phase 10): schedule order-confirmation email here.
+    // Send the order-confirmation email out of band (Node runtime, so it can't
+    // run inside this transaction). Scheduling is part of the transaction, so a
+    // rollback would also drop the scheduled send — no orphan emails.
+    await ctx.scheduler.runAfter(0, internal.emails.sendOrderConfirmation, {
+      orderId: order._id,
+    });
     return { ok: true };
   },
 });
@@ -144,5 +153,131 @@ export const cancelPendingOrder = internalMutation({
       await ctx.db.patch("orders", order._id, { status: "cancelled" });
     }
     return { ok: true };
+  },
+});
+
+// --- Account: order history --------------------------------------------------
+
+async function loadOrderItems(ctx: QueryCtx, orderId: Id<"orders">) {
+  return await ctx.db
+    .query("orderItems")
+    .withIndex("by_order", (q) => q.eq("orderId", orderId))
+    .take(200);
+}
+
+// The signed-in customer's orders, newest first. Identity-derived — never takes
+// a userId argument. Returns [] for guests / users with no linked orders.
+export const listMyOrders = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_tokenIdentifier", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+    if (!user) return [];
+
+    const orders = await ctx.db
+      .query("orders")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .order("desc")
+      .take(100);
+
+    // Only surface orders that actually went through. A `pending` order is just
+    // a pre-payment draft; an order cancelled before payment (abandoned at
+    // Stripe) never had money attached. We show anything that was ever paid
+    // (incl. later refunded/cancelled), keyed off `paidAt`.
+    const realOrders = orders
+      .filter(
+        (o) =>
+          o.status === "paid" ||
+          o.status === "fulfilled" ||
+          o.status === "refunded" ||
+          o.paidAt !== undefined,
+      )
+      .slice(0, 50);
+
+    return await Promise.all(
+      realOrders.map(async (order) => {
+        const items = await loadOrderItems(ctx, order._id);
+        return {
+          _id: order._id,
+          orderNumber: order.orderNumber,
+          createdAt: order._creationTime,
+          status: order.status,
+          fulfillmentMethod: order.fulfillmentMethod,
+          fulfillmentStatus: order.fulfillmentStatus,
+          subtotalCents: order.subtotalCents,
+          shippingCents: order.shippingCents,
+          taxCents: order.taxCents,
+          totalCents: order.totalCents,
+          items: items.map((i) => ({
+            nameSnapshot: i.nameSnapshot,
+            variantTitleSnapshot: i.variantTitleSnapshot,
+            quantity: i.quantity,
+            lineTotalCents: i.lineTotalCents,
+          })),
+        };
+      }),
+    );
+  },
+});
+
+// --- Email: full data for the order-confirmation message --------------------
+
+// Internal: everything the confirmation email needs. Called from the Node
+// email action via ctx.runQuery (the action can't touch the db directly).
+export const getOrderForEmail = internalQuery({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, { orderId }) => {
+    const order = await ctx.db.get("orders", orderId);
+    if (!order) return null;
+
+    const items = await loadOrderItems(ctx, orderId);
+
+    let pickupLocation: {
+      name: string;
+      addressLine1: string;
+      city: string;
+      province: string;
+      postalCode: string;
+      instructions: string | null;
+    } | null = null;
+    if (order.pickupLocationId) {
+      const pickup = await ctx.db.get("pickupLocations", order.pickupLocationId);
+      if (pickup) {
+        pickupLocation = {
+          name: pickup.name,
+          addressLine1: pickup.addressLine1,
+          city: pickup.city,
+          province: pickup.province,
+          postalCode: pickup.postalCode,
+          instructions: pickup.instructions ?? null,
+        };
+      }
+    }
+
+    return {
+      orderNumber: order.orderNumber,
+      email: order.email,
+      status: order.status,
+      fulfillmentMethod: order.fulfillmentMethod,
+      subtotalCents: order.subtotalCents,
+      shippingCents: order.shippingCents,
+      taxCents: order.taxCents,
+      totalCents: order.totalCents,
+      shippingAddress: order.shippingAddress ?? null,
+      pickupLocation,
+      items: items.map((i) => ({
+        nameSnapshot: i.nameSnapshot,
+        variantTitleSnapshot: i.variantTitleSnapshot,
+        quantity: i.quantity,
+        lineTotalCents: i.lineTotalCents,
+      })),
+    };
   },
 });
