@@ -177,6 +177,14 @@ export default defineSchema({
     weightGramsSnapshot: v.number(),
   }).index("by_order", ["orderId"]),
 
+  // --- Customer ----------------------------------------------------------
+  wishlists: defineTable({
+    userId: v.id("users"),
+    productId: v.id("products"),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_and_product", ["userId", "productId"]),
+
   // --- Fulfillment --------------------------------------------------------
   shipments: defineTable({
     orderId: v.id("orders"),

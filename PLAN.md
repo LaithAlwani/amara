@@ -913,3 +913,18 @@ Every decision should answer:
 1. In the **Images** section, **Upload** one or more images → thumbnails appear; the first is badged **Cover**.
 2. **Set cover** on another / reorder with ←/→ / **remove** one → changes persist and reflect live.
 3. Open that product on the storefront (`/products/[slug]`) → the uploaded image is now the gallery/card image (it overrides the seed picsum). Removing all uploads falls back to the seed image.
+
+## Phase 11 — Wishlist ✅ (2026-06-08)
+**Done:**
+- **Schema** — new `wishlists` table `{ userId, productId }` with `by_user` and `by_user_and_product` indexes. Account-bound (guests can't save, per blueprint §3).
+- **Backend** — `convex/wishlist.ts`: `myWishlistIds` (current user's saved product ids — drives heart state; `[]` for guests), `toggleWishlist` (add/remove, auth-required, returns new state), `getWishlist` (saved products as cards, active-only, newest-first) for the account page.
+- **Heart toggle** — `components/shop/wishlist-button.tsx` (`icon` for cards, `labeled` for PDP). Filled clay heart when saved; reactive via `myWishlistIds`. Signed-out click → toast + redirect to `/sign-in`. `ProductCard` restructured so the heart sits **outside** the `<Link>` (no nav hijack); added a `Save to wishlist` button under the PDP purchase panel.
+- **Account page** — `/account/wishlist` (`my-wishlist.tsx`) reuses the `ProductCard` grid (so the heart un-saves live); empty + loading states. Added **Wishlist** to the account dropdown menu.
+- `tsc` clean; `eslint` clean; `next build` green; Convex deployed (schema migrated).
+
+**Deferred:** direct "move to bag" from the wishlist (cards link to the PDP to choose a variant — variant selection needed for add-to-cart); wishlist sharing.
+
+**How to test Phase 11:** dev server, signed in.
+1. On `/shop` or a PDP, tap the **heart** → it fills (clay) and toasts "Saved to wishlist". Tap again → removed.
+2. Account menu → **Wishlist** (`/account/wishlist`) → saved products show as cards; tapping a card's heart removes it live.
+3. Sign out, tap a heart → toast "Sign in to save favorites" and redirect to `/sign-in` (nothing saved).

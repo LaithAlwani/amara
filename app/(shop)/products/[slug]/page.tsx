@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 import { ProductPurchasePanel } from "@/components/shop/product-purchase-panel";
+import { WishlistButton } from "@/components/shop/wishlist-button";
 
 type Params = { slug: string };
 
@@ -82,6 +83,10 @@ export default async function ProductPage({
 
           <div className="mt-8">
             <ProductPurchasePanel variants={product.variants} />
+          </div>
+
+          <div className="mt-4">
+            <WishlistButton productId={product._id} variant="labeled" />
           </div>
 
           <div className="mt-10 border-t border-border pt-8">
