@@ -928,3 +928,21 @@ Every decision should answer:
 1. On `/shop` or a PDP, tap the **heart** → it fills (clay) and toasts "Saved to wishlist". Tap again → removed.
 2. Account menu → **Wishlist** (`/account/wishlist`) → saved products show as cards; tapping a card's heart removes it live.
 3. Sign out, tap a heart → toast "Sign in to save favorites" and redirect to `/sign-in` (nothing saved).
+
+## Phase 12 — Discount codes ✅ (2026-06-08)
+**Done:**
+- **Schema** — `discountCodes` table `{ code (UPPERCASE), kind percent|fixed, value, active, minSubtotalCents?, usageLimit?, usedCount, expiresAt? }` (`by_code`); `orders` gained `discountCode?` + `discountCents?`.
+- **Evaluator** — `convex/discounts.ts` `evaluateDiscount(ctx, code, subtotal)` (shared by quote + order creation): checks active / expiry / usage limit / min-spend, computes `discountCents` (percent or fixed, clamped to subtotal), returns a friendly error. Admin (`requireAdmin`) `listCodes`/`createCode`/`setCodeActive`/`deleteCode`.
+- **Checkout math** — `computeTotals` now subtracts the discount from the subtotal; **tax is computed on the discounted base + shipping**. `quoteCart` + `createDraftOrder` take an optional `discountCode`, re-validate authoritatively, and the order persists `discountCode`/`discountCents`.
+- **Stripe** — `createCheckoutSession` represents the discount as a one-off Stripe **coupon** (`amount_off`, `duration: once`) so the hosted total equals our order total (line items stay full price; tax line already on the discounted base). `finalizeOrderPaid` increments the code's `usedCount` **only on paid orders**.
+- **Once per customer** — `discountRedemptions` table `{ code, userId?, email, orderId }` (`by_code_and_user`, `by_code_and_email`), written on payment. `evaluateDiscount` takes the shopper (account id + checkout email) and rejects a code the customer has already redeemed — matched by **either** account or email, so it can't be dodged by switching guest/account. Checked live in the quote (email passed from the form) and authoritatively at order creation. One code per order (no stacking) was already enforced.
+- **Surfacing** — discount line added to the checkout summary, `/checkout/success` confirmation, and the confirmation email.
+- **UI** — promo-code input in the checkout summary (apply/remove + inline error); `/admin/discounts` create form (code, %/$ off, min spend, usage limit, expiry) + table with enable/disable + delete; added **Discounts** to the admin nav.
+- `tsc` clean; `next build` green; Convex deployed (schema migrated). (One *pre-existing* lint warning remains in `checkout-client.tsx`'s email-prefill effect — untouched by this phase.)
+
+**Deferred:** free-shipping-type codes; stacking multiple codes; editing an existing code's parameters (create/disable/delete only).
+
+**How to test Phase 12:** signed in as admin.
+1. **Admin → Discounts** → create e.g. `WELCOME10` = 10% off (optionally min spend / usage limit / expiry).
+2. Add items, go to `/checkout` → enter `WELCOME10` → **Apply** → the discount line appears, **tax + total drop**, and the code chip shows. A bad/expired code shows an inline error.
+3. **Continue to payment** → the Stripe hosted total matches the discounted order total → pay with `4242…` → `/checkout/success` and the email both show the discount line; the code's **Used** count ticks up in admin.

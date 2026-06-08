@@ -26,6 +26,8 @@ export const getOrderForStripe = internalQuery({
       status: order.status,
       email: order.email,
       shippingCents: order.shippingCents,
+      discountCents: order.discountCents ?? 0,
+      discountCode: order.discountCode ?? null,
       taxCents: order.taxCents,
       items: items.map((i) => ({
         name: i.nameSnapshot,
@@ -108,6 +110,26 @@ export const finalizeOrderPaid = internalMutation({
           inventoryQty: Math.max(0, variant.inventoryQty - item.quantity),
         });
       }
+    }
+
+    // Count the discount redemption (only paid orders consume usage) and record
+    // it per-customer so the code can't be reused by the same account/email.
+    if (order.discountCode) {
+      const code = await ctx.db
+        .query("discountCodes")
+        .withIndex("by_code", (q) => q.eq("code", order.discountCode!))
+        .unique();
+      if (code) {
+        await ctx.db.patch("discountCodes", code._id, {
+          usedCount: code.usedCount + 1,
+        });
+      }
+      await ctx.db.insert("discountRedemptions", {
+        code: order.discountCode,
+        userId: order.userId,
+        email: order.email,
+        orderId: order._id,
+      });
     }
 
     // Clear the cart this order came from.
@@ -268,6 +290,8 @@ export const getOrderForEmail = internalQuery({
       fulfillmentMethod: order.fulfillmentMethod,
       subtotalCents: order.subtotalCents,
       shippingCents: order.shippingCents,
+      discountCode: order.discountCode ?? null,
+      discountCents: order.discountCents ?? 0,
       taxCents: order.taxCents,
       totalCents: order.totalCents,
       shippingAddress: order.shippingAddress ?? null,

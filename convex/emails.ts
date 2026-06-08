@@ -21,6 +21,8 @@ type EmailOrder = {
   fulfillmentMethod: "ship" | "pickup";
   subtotalCents: number;
   shippingCents: number;
+  discountCode: string | null;
+  discountCents: number;
   taxCents: number;
   totalCents: number;
   shippingAddress: {
@@ -132,6 +134,14 @@ function renderHtml(
         </table>
         <table style="width:100%;border-collapse:collapse;border-top:1px solid #e3e8e2;margin-top:8px;padding-top:8px;">
           ${summaryRow("Subtotal", money(order.subtotalCents))}
+          ${
+            order.discountCents > 0
+              ? summaryRow(
+                  `Discount${order.discountCode ? ` (${escapeHtml(order.discountCode)})` : ""}`,
+                  `-${money(order.discountCents)}`,
+                )
+              : ""
+          }
           ${summaryRow(
             "Shipping",
             order.shippingCents === 0 ? "Free" : money(order.shippingCents),

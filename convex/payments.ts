@@ -53,12 +53,30 @@ export const createCheckoutSession = action({
       });
     }
 
+    // Represent the discount as a one-off Stripe coupon so the hosted total
+    // matches our order total. Line items stay at full price (incl. the tax
+    // line already computed on the discounted base); the coupon takes the
+    // discount off the top.
+    let discounts:
+      | Stripe.Checkout.SessionCreateParams.Discount[]
+      | undefined;
+    if (data.discountCents > 0) {
+      const coupon = await stripe.coupons.create({
+        amount_off: data.discountCents,
+        currency: "cad",
+        duration: "once",
+        name: data.discountCode ?? "Discount",
+      });
+      discounts = [{ coupon: coupon.id }];
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       line_items: lineItems,
       customer_email: data.email,
       client_reference_id: orderId,
       metadata: { orderId, orderNumber: data.orderNumber },
+      ...(discounts ? { discounts } : {}),
       success_url: `${origin}/checkout/success?orderId=${orderId}`,
       cancel_url: `${origin}/checkout/cancel?orderId=${orderId}`,
       // Expire after 30 min (Stripe's minimum). When it lapses, the

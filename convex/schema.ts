@@ -154,6 +154,8 @@ export default defineSchema({
     shippingAddress: v.optional(addressValidator), // required for ship
     pickupLocationId: v.optional(v.id("pickupLocations")), // set for pickup
     cartId: v.optional(v.id("carts")), // source cart, cleared when paid
+    discountCode: v.optional(v.string()),
+    discountCents: v.optional(v.number()),
     stripeCheckoutSessionId: v.optional(v.string()),
     stripePaymentIntentId: v.optional(v.string()),
     paidAt: v.optional(v.number()),
@@ -221,6 +223,29 @@ export default defineSchema({
     instructions: v.optional(v.string()),
     active: v.boolean(),
   }).index("by_active", ["active"]),
+
+  // --- Marketing ----------------------------------------------------------
+  discountCodes: defineTable({
+    code: v.string(), // normalized UPPERCASE
+    kind: v.union(v.literal("percent"), v.literal("fixed")),
+    value: v.number(), // percent points (10 = 10%) or cents off
+    active: v.boolean(),
+    minSubtotalCents: v.optional(v.number()),
+    usageLimit: v.optional(v.number()), // max paid redemptions
+    usedCount: v.number(),
+    expiresAt: v.optional(v.number()),
+  }).index("by_code", ["code"]),
+
+  // One row per paid redemption — enforces "once per customer" (matched by
+  // account id and/or guest email).
+  discountRedemptions: defineTable({
+    code: v.string(),
+    userId: v.optional(v.id("users")),
+    email: v.string(), // lowercased
+    orderId: v.id("orders"),
+  })
+    .index("by_code_and_user", ["code", "userId"])
+    .index("by_code_and_email", ["code", "email"]),
 
   // --- Config & ops -------------------------------------------------------
   settings: defineTable({

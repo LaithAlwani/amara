@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { Doc, Id } from "./_generated/dataModel";
 import { findOpenCart } from "./cart";
 import { primaryImage } from "./catalog";
+import { evaluateDiscount } from "./discounts";
 
 const fulfillmentValidator = v.union(v.literal("ship"), v.literal("pickup"));
 
@@ -57,25 +58,35 @@ function computeTotals(
   subtotalCents: number,
   method: "ship" | "pickup",
   settings: Doc<"settings">,
+  discountCents: number = 0,
 ) {
   const shippingCents =
     method === "ship" ? settings.flatRateShippingCents : 0;
-  const taxableBase = subtotalCents + shippingCents;
+  // Discount applies to the subtotal; tax is then computed on the discounted
+  // base plus shipping.
+  const discountedSubtotal = Math.max(0, subtotalCents - discountCents);
+  const taxableBase = discountedSubtotal + shippingCents;
   const taxCents = settings.taxRatePpm
     ? Math.round((taxableBase * settings.taxRatePpm) / 1_000_000)
     : 0;
   return {
     shippingCents,
+    discountCents,
     taxCents,
-    totalCents: subtotalCents + shippingCents + taxCents,
+    totalCents: discountedSubtotal + shippingCents + taxCents,
   };
 }
 
 // Live, authoritative quote for the current cart under a chosen fulfillment
 // method. Drives the checkout summary and flags any stock problems.
 export const quoteCart = query({
-  args: { anonId: v.optional(v.string()), fulfillmentMethod: fulfillmentValidator },
-  handler: async (ctx, { anonId, fulfillmentMethod }) => {
+  args: {
+    anonId: v.optional(v.string()),
+    fulfillmentMethod: fulfillmentValidator,
+    discountCode: v.optional(v.string()),
+    email: v.optional(v.string()),
+  },
+  handler: async (ctx, { anonId, fulfillmentMethod, discountCode, email }) => {
     const settings = await getSettings(ctx);
     const pickup = await getActivePickup(ctx);
     const pickupLocation = pickup
@@ -98,6 +109,9 @@ export const quoteCart = query({
         items: [],
         subtotalCents: 0,
         shippingCents: 0,
+        discountCents: 0,
+        appliedCode: null as string | null,
+        discountError: null as string | null,
         taxCents: 0,
         totalCents: 0,
         issues: [] as { name: string; reason: string }[],
@@ -131,12 +145,39 @@ export const quoteCart = query({
       }
     }
 
-    const totals = computeTotals(subtotalCents, fulfillmentMethod, settings);
+    // Resolve the shopper (account and/or entered email) so the once-per-
+    // customer rule can be checked live in the quote.
+    const identity = await ctx.auth.getUserIdentity();
+    let userId: Id<"users"> | undefined;
+    let custEmail = email?.trim().toLowerCase() || undefined;
+    if (identity) {
+      const u = await ctx.db
+        .query("users")
+        .withIndex("by_tokenIdentifier", (q) =>
+          q.eq("tokenIdentifier", identity.tokenIdentifier),
+        )
+        .unique();
+      userId = u?._id;
+      if (!custEmail) custEmail = (identity.email ?? "").toLowerCase() || undefined;
+    }
+
+    const discount = await evaluateDiscount(ctx, discountCode, subtotalCents, {
+      userId,
+      email: custEmail,
+    });
+    const totals = computeTotals(
+      subtotalCents,
+      fulfillmentMethod,
+      settings,
+      discount.discountCents,
+    );
     return {
       empty: items.length === 0,
       items,
       subtotalCents,
       ...totals,
+      appliedCode: discount.code?.code ?? null,
+      discountError: discount.error,
       issues,
       pickupLocation,
     };
@@ -170,6 +211,7 @@ export const createDraftOrder = mutation({
     fulfillmentMethod: fulfillmentValidator,
     shippingAddress: v.optional(addressArg),
     pickupLocationId: v.optional(v.id("pickupLocations")),
+    discountCode: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const email = args.email.trim().toLowerCase();
@@ -191,27 +233,6 @@ export const createDraftOrder = mutation({
       subtotalCents += variant.priceCents * item.quantity;
     }
 
-    const settings = await getSettings(ctx);
-    const { shippingCents, taxCents, totalCents } = computeTotals(
-      subtotalCents,
-      args.fulfillmentMethod,
-      settings,
-    );
-
-    // Fulfillment-specific requirements.
-    let pickupLocationId: Id<"pickupLocations"> | undefined;
-    let shippingAddress = undefined;
-    if (args.fulfillmentMethod === "ship") {
-      if (!args.shippingAddress) throw new Error("A shipping address is required.");
-      shippingAddress = args.shippingAddress;
-    } else {
-      const pickup = args.pickupLocationId
-        ? await ctx.db.get("pickupLocations", args.pickupLocationId)
-        : await getActivePickup(ctx);
-      if (!pickup || !pickup.active) throw new Error("Pickup is unavailable.");
-      pickupLocationId = pickup._id;
-    }
-
     // Identity (optional): link order to the account if signed in.
     const identity = await ctx.auth.getUserIdentity();
     let userId: Id<"users"> | undefined;
@@ -227,6 +248,36 @@ export const createDraftOrder = mutation({
       emailVerifiedAtPurchase =
         identity.emailVerified === true &&
         (identity.email ?? "").toLowerCase() === email;
+    }
+
+    // Re-validate the discount authoritatively at order time, including the
+    // once-per-customer rule (by account id and/or checkout email).
+    const discount = await evaluateDiscount(ctx, args.discountCode, subtotalCents, {
+      userId,
+      email,
+    });
+    if (discount.error) throw new Error(discount.error);
+
+    const settings = await getSettings(ctx);
+    const { shippingCents, taxCents, totalCents } = computeTotals(
+      subtotalCents,
+      args.fulfillmentMethod,
+      settings,
+      discount.discountCents,
+    );
+
+    // Fulfillment-specific requirements.
+    let pickupLocationId: Id<"pickupLocations"> | undefined;
+    let shippingAddress = undefined;
+    if (args.fulfillmentMethod === "ship") {
+      if (!args.shippingAddress) throw new Error("A shipping address is required.");
+      shippingAddress = args.shippingAddress;
+    } else {
+      const pickup = args.pickupLocationId
+        ? await ctx.db.get("pickupLocations", args.pickupLocationId)
+        : await getActivePickup(ctx);
+      if (!pickup || !pickup.active) throw new Error("Pickup is unavailable.");
+      pickupLocationId = pickup._id;
     }
 
     // Human order number via a running counter on the settings singleton.
@@ -250,6 +301,8 @@ export const createDraftOrder = mutation({
       shippingAddress,
       pickupLocationId,
       cartId: cart._id,
+      discountCode: discount.code?.code,
+      discountCents: discount.discountCents || undefined,
     });
 
     for (const { variant, product, item } of lines) {
@@ -306,6 +359,8 @@ export const getOrderConfirmation = query({
       email: order.email,
       subtotalCents: order.subtotalCents,
       shippingCents: order.shippingCents,
+      discountCode: order.discountCode ?? null,
+      discountCents: order.discountCents ?? 0,
       taxCents: order.taxCents,
       totalCents: order.totalCents,
       shippingAddress: order.shippingAddress ?? null,

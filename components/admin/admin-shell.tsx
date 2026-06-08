@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 const ADMIN_NAV = [
   { href: "/admin/orders", label: "Orders" },
   { href: "/admin/products", label: "Products" },
+  { href: "/admin/discounts", label: "Discounts" },
 ];
 
 // Client-side admin gate. The real security boundary is `requireAdmin` inside

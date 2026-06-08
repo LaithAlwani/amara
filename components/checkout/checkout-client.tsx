@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAction, useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useUser } from "@clerk/nextjs";
-import { Truck, Storefront, SpinnerGap, Warning } from "@phosphor-icons/react";
+import { Truck, Storefront, SpinnerGap, Warning, X } from "@phosphor-icons/react";
 import { api } from "@/convex/_generated/api";
 import { useAnonId } from "@/lib/use-anon-id";
 import { cn } from "@/lib/utils";
@@ -46,6 +46,8 @@ export function CheckoutClient() {
   const [address, setAddress] = useState(emptyAddress);
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [codeInput, setCodeInput] = useState("");
+  const [appliedCode, setAppliedCode] = useState("");
 
   const createDraftOrder = useMutation(api.checkout.createDraftOrder);
   const startCheckout = useAction(api.payments.createCheckoutSession);
@@ -56,12 +58,14 @@ export function CheckoutClient() {
     if (e && !email) setEmail(e);
   }, [user, email]);
 
+  const discountCode = appliedCode || undefined;
+  const quoteEmail = email.trim() || undefined;
   const quoteArgs = authLoading
     ? "skip"
     : isAuthenticated
-      ? { fulfillmentMethod: method }
+      ? { fulfillmentMethod: method, discountCode, email: quoteEmail }
       : anonId
-        ? { anonId, fulfillmentMethod: method }
+        ? { anonId, fulfillmentMethod: method, discountCode, email: quoteEmail }
         : "skip";
   const quote = useQuery(api.checkout.quoteCart, quoteArgs);
 
@@ -116,6 +120,7 @@ export function CheckoutClient() {
                 phone: address.phone.trim() || undefined,
               }
             : undefined,
+        discountCode: quote?.appliedCode ?? undefined,
       });
       const { url } = await startCheckout({
         orderId,
@@ -297,8 +302,66 @@ export function CheckoutClient() {
               ))}
             </ul>
 
+            {/* Promo code */}
+            <div className="border-t border-border pt-4">
+              {quote.appliedCode ? (
+                <div className="flex items-center justify-between rounded-lg bg-clay/10 px-3 py-2 text-sm">
+                  <span className="font-medium text-clay">
+                    {quote.appliedCode} applied
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="Remove code"
+                    onClick={() => {
+                      setAppliedCode("");
+                      setCodeInput("");
+                    }}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="size-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <Input
+                    value={codeInput}
+                    onChange={(e) => setCodeInput(e.target.value)}
+                    placeholder="Promo code"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && codeInput.trim()) {
+                        e.preventDefault();
+                        setAppliedCode(codeInput.trim());
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!codeInput.trim()}
+                    onClick={() => setAppliedCode(codeInput.trim())}
+                  >
+                    Apply
+                  </Button>
+                </div>
+              )}
+              {quote.discountError ? (
+                <p className="mt-1.5 text-xs text-destructive">
+                  {quote.discountError}
+                </p>
+              ) : null}
+            </div>
+
             <div className="space-y-1.5 border-t border-border pt-4 text-sm">
               <Row label="Subtotal" value={formatPrice(quote.subtotalCents)} />
+              {quote.discountCents > 0 ? (
+                <div className="flex justify-between text-clay">
+                  <span>
+                    Discount
+                    {quote.appliedCode ? ` (${quote.appliedCode})` : ""}
+                  </span>
+                  <span>-{formatPrice(quote.discountCents)}</span>
+                </div>
+              ) : null}
               <Row
                 label="Shipping"
                 value={

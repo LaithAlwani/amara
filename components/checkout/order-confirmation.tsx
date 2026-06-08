@@ -83,6 +83,14 @@ export function OrderConfirmation({ orderId }: { orderId: string }) {
 
         <div className="mt-4 space-y-1.5 border-t border-border pt-4 text-sm">
           <Line label="Subtotal" value={formatPrice(order.subtotalCents)} />
+          {order.discountCents > 0 ? (
+            <div className="flex justify-between text-clay">
+              <span>
+                Discount{order.discountCode ? ` (${order.discountCode})` : ""}
+              </span>
+              <span>-{formatPrice(order.discountCents)}</span>
+            </div>
+          ) : null}
           <Line
             label="Shipping"
             value={
