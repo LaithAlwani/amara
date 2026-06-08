@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 const ADMIN_NAV = [
   { href: "/admin/orders", label: "Orders" },
   { href: "/admin/products", label: "Products" },
+  { href: "/admin/collections", label: "Collections" },
   { href: "/admin/discounts", label: "Discounts" },
 ];
 

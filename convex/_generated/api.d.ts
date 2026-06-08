@@ -10,6 +10,7 @@
 
 import type * as admin from "../admin.js";
 import type * as adminCatalog from "../adminCatalog.js";
+import type * as adminCollections from "../adminCollections.js";
 import type * as cart from "../cart.js";
 import type * as catalog from "../catalog.js";
 import type * as checkout from "../checkout.js";
@@ -34,6 +35,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   adminCatalog: typeof adminCatalog;
+  adminCollections: typeof adminCollections;
   cart: typeof cart;
   catalog: typeof catalog;
   checkout: typeof checkout;

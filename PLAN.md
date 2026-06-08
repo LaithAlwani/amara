@@ -993,3 +993,17 @@ Every decision should answer:
 4. Admin → **Discounts**: change **Subscribe & Save %** and **Free shipping over $** → reflected in the checkout subscribe summary.
 
 *(Full E2E needs the browser Stripe checkout — auth + cart are required, so it can't be driven purely from the CLI like the Phase-13 single-item path.)*
+
+## Phase 15 — Collections admin ✅ (2026-06-08)
+**Done:**
+- **Backend** — `convex/adminCollections.ts` (all `requireAdmin`-gated): `listCollections` (with product count + resolved cover), `getCollection` (fields + members ordered + cover URL), `createCollection`/`updateCollection` (slug-unique, `type:"manual"`), `deleteCollection` (also clears memberships + deletes the cover blob), membership `addProduct`/`removeProduct`/`reorderProducts`, and `setCollectionImage` (upload to `imageStorageId`, deletes the prior blob; upload URL shared with `adminCatalog.generateUploadUrl`).
+- **Admin UI** — added **Collections** to the nav. `/admin/collections` list (cover thumb, product count, sort order, published badge). Create flow `/admin/collections/new` (`collection-form.tsx`: title, auto-slug, description, sort order, published) → redirects to edit. Edit screen `/admin/collections/[collectionId]` (`admin-collection-detail.tsx`): edit form + single **cover-image uploader** (Convex storage) + `collection-members.tsx` (member list with up/down reorder + remove, and an "Add a product" picker over the catalog) + branded delete-confirm.
+- Storefront already reads collections via `collections.ts` (`collectionImage` prefers the uploaded storage image), so admin changes (publish, membership, order, cover) reflect on `/collections` and the homepage rails.
+- `tsc` clean; `eslint` clean; `next build` green; Convex deployed.
+
+**Deferred:** rule-based (smart) collections — admin-created ones are manual; drag-and-drop reorder (up/down arrows for now).
+
+**How to test Phase 15:** admin → **Collections**.
+1. The 2 seeded collections list with product counts + published status.
+2. **New collection** → fill the form → Create → on the edit screen **Add products** (picker), **reorder** with ↑/↓, **upload a cover**.
+3. Set **Published** on → it appears on `/collections`; toggle off → it drops from the storefront. Reorder/membership/cover changes reflect on the collection page.
