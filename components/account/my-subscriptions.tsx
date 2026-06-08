@@ -18,10 +18,12 @@ const dateFmt = new Intl.DateTimeFormat("en-CA", {
   day: "numeric",
 });
 
-type Status = "active" | "paused" | "past_due" | "canceled";
+type Status = "draft" | "active" | "paused" | "past_due" | "canceled";
 
 function statusBadge(status: Status): { label: string; className: string } {
   switch (status) {
+    case "draft":
+      return { label: "Pending", className: "bg-muted text-muted-foreground" };
     case "active":
       return {
         label: "Active",
@@ -109,22 +111,42 @@ export function MySubscriptions() {
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="font-medium">
-                  {s.nameSnapshot}
-                  <span className="text-muted-foreground">
-                    {" "}
-                    ({s.variantTitleSnapshot}) ×{s.quantity}
-                  </span>
-                </p>
-                <p className="mt-0.5 text-sm text-muted-foreground">
-                  {formatPrice(s.unitPriceCents)} each · {frequency(s.intervalCount)}
+                <p className="text-sm text-muted-foreground">
+                  {frequency(s.intervalCount)}
                   {s.status !== "canceled" && s.currentPeriodEnd
                     ? ` · next ${dateFmt.format(s.currentPeriodEnd)}`
                     : ""}
                 </p>
+                <p className="mt-0.5 font-medium">
+                  {formatPrice(s.subtotalCents + s.shippingCents)} per delivery
+                  <span className="font-normal text-muted-foreground">
+                    {" "}
+                    + tax
+                  </span>
+                </p>
               </div>
               <Badge className={badge.className}>{badge.label}</Badge>
             </div>
+
+            <ul className="mt-3 space-y-1 border-t border-border pt-3">
+              {s.items.map((item, i) => (
+                <li
+                  key={i}
+                  className="flex justify-between gap-3 text-sm text-muted-foreground"
+                >
+                  <span>
+                    {item.nameSnapshot}
+                    <span className="text-muted-foreground/70">
+                      {" "}
+                      ({item.variantTitleSnapshot}) ×{item.quantity}
+                    </span>
+                  </span>
+                  <span className="whitespace-nowrap">
+                    {formatPrice(item.unitPriceCents * item.quantity)}
+                  </span>
+                </li>
+              ))}
+            </ul>
 
             {s.status !== "canceled" ? (
               <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-4">

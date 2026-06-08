@@ -1,10 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAction, useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useUser } from "@clerk/nextjs";
-import { Truck, Storefront, SpinnerGap, Warning, X } from "@phosphor-icons/react";
+import {
+  Truck,
+  Storefront,
+  SpinnerGap,
+  Warning,
+  X,
+} from "@phosphor-icons/react";
 import { api } from "@/convex/_generated/api";
 import { useAnonId } from "@/lib/use-anon-id";
 import { cn } from "@/lib/utils";
@@ -25,6 +32,13 @@ const PROVINCES = [
 ];
 
 type Method = "ship" | "pickup";
+type Mode = "one-time" | "subscribe";
+
+const INTERVALS = [
+  { count: 1, label: "Monthly" },
+  { count: 2, label: "Every 2 months" },
+  { count: 3, label: "Every 3 months" },
+];
 
 const emptyAddress = {
   name: "",
@@ -40,9 +54,14 @@ export function CheckoutClient() {
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const { anonId, ensureAnonId } = useAnonId();
   const { user } = useUser();
+  const router = useRouter();
 
+  const [mode, setMode] = useState<Mode>("one-time");
   const [method, setMethod] = useState<Method>("ship");
-  const [email, setEmail] = useState("");
+  const [interval, setInterval] = useState(1);
+  // Email is derived: the typed value if the shopper edited it, else their
+  // signed-in address (avoids a setState-in-effect prefill).
+  const [emailInput, setEmailInput] = useState<string | null>(null);
   const [address, setAddress] = useState(emptyAddress);
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,23 +70,40 @@ export function CheckoutClient() {
 
   const createDraftOrder = useMutation(api.checkout.createDraftOrder);
   const startCheckout = useAction(api.payments.createCheckoutSession);
+  const startSubscription = useAction(
+    api.payments.createCartSubscriptionCheckout,
+  );
 
-  // Prefill email for signed-in shoppers.
-  useEffect(() => {
-    const e = user?.primaryEmailAddress?.emailAddress;
-    if (e && !email) setEmail(e);
-  }, [user, email]);
+  const isSubscribe = mode === "subscribe";
+  const email = emailInput ?? user?.primaryEmailAddress?.emailAddress ?? "";
 
   const discountCode = appliedCode || undefined;
   const quoteEmail = email.trim() || undefined;
-  const quoteArgs = authLoading
-    ? "skip"
+  const argsBase = authLoading
+    ? null
     : isAuthenticated
-      ? { fulfillmentMethod: method, discountCode, email: quoteEmail }
+      ? {}
       : anonId
-        ? { anonId, fulfillmentMethod: method, discountCode, email: quoteEmail }
-        : "skip";
-  const quote = useQuery(api.checkout.quoteCart, quoteArgs);
+        ? { anonId }
+        : null;
+  const quote = useQuery(
+    api.checkout.quoteCart,
+    argsBase
+      ? { ...argsBase, fulfillmentMethod: method, discountCode, email: quoteEmail }
+      : "skip",
+  );
+  const subQuote = useQuery(
+    api.subscriptions.quoteSubscription,
+    argsBase ? argsBase : "skip",
+  );
+
+  const subscribable = (subQuote?.percent ?? 0) > 0;
+
+  // Subscriptions ship only.
+  function chooseMode(next: Mode) {
+    setMode(next);
+    if (next === "subscribe") setMethod("ship");
+  }
 
   if (quote && quote.empty) {
     return (
@@ -90,13 +126,36 @@ export function CheckoutClient() {
     address.postalCode.trim();
   const emailValid = email.trim().includes("@");
   const hasIssues = (quote?.issues.length ?? 0) > 0;
+
   const canPlace =
+    !isSubscribe &&
     !!quote &&
     !quote.empty &&
     !hasIssues &&
     emailValid &&
     (method === "pickup" || !!addressValid) &&
     !placing;
+  const canSubscribe =
+    isSubscribe &&
+    isAuthenticated &&
+    !!subQuote &&
+    !subQuote.empty &&
+    emailValid &&
+    !!addressValid &&
+    !placing;
+
+  function buildAddress() {
+    return {
+      name: address.name.trim(),
+      line1: address.line1.trim(),
+      line2: address.line2.trim() || undefined,
+      city: address.city.trim(),
+      province: address.province,
+      postalCode: address.postalCode.trim(),
+      country: "CA",
+      phone: address.phone.trim() || undefined,
+    };
+  }
 
   async function placeOrder() {
     setError(null);
@@ -107,19 +166,7 @@ export function CheckoutClient() {
         anonId: id,
         email: email.trim(),
         fulfillmentMethod: method,
-        shippingAddress:
-          method === "ship"
-            ? {
-                name: address.name.trim(),
-                line1: address.line1.trim(),
-                line2: address.line2.trim() || undefined,
-                city: address.city.trim(),
-                province: address.province,
-                postalCode: address.postalCode.trim(),
-                country: "CA",
-                phone: address.phone.trim() || undefined,
-              }
-            : undefined,
+        shippingAddress: method === "ship" ? buildAddress() : undefined,
         discountCode: quote?.appliedCode ?? undefined,
       });
       const { url } = await startCheckout({
@@ -133,6 +180,31 @@ export function CheckoutClient() {
     }
   }
 
+  async function subscribe() {
+    if (!isAuthenticated) {
+      router.push("/sign-in");
+      return;
+    }
+    setError(null);
+    setPlacing(true);
+    try {
+      const { url } = await startSubscription({
+        intervalCount: interval,
+        email: email.trim(),
+        shippingAddress: buildAddress(),
+        origin: window.location.origin,
+      });
+      window.location.href = url;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong.");
+      setPlacing(false);
+    }
+  }
+
+  // Active summary numbers depend on the mode.
+  const summaryItems = isSubscribe ? (subQuote?.items ?? []) : (quote?.items ?? []);
+  const summary = isSubscribe ? subQuote : quote;
+
   return (
     <div className="grid gap-12 lg:grid-cols-[1fr_380px]">
       {/* Form */}
@@ -145,7 +217,7 @@ export function CheckoutClient() {
               id="email"
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => setEmailInput(e.target.value)}
               placeholder="you@email.com"
               autoComplete="email"
             />
@@ -168,10 +240,11 @@ export function CheckoutClient() {
             />
             <FulfillmentOption
               active={method === "pickup"}
-              onClick={() => setMethod("pickup")}
+              onClick={() => !isSubscribe && setMethod("pickup")}
+              disabled={isSubscribe}
               icon={<Storefront className="size-5" />}
               title="Local pickup"
-              subtitle="Free, in Ottawa"
+              subtitle={isSubscribe ? "Not for subscriptions" : "Free, in Ottawa"}
             />
           </div>
 
@@ -283,12 +356,28 @@ export function CheckoutClient() {
       <aside className="h-fit space-y-5 rounded-2xl border border-border bg-card p-6">
         <h2 className="font-heading text-xl tracking-tight">Order summary</h2>
 
-        {!quote ? (
+        {/* Purchase mode */}
+        {subscribable ? (
+          <div className="grid grid-cols-2 gap-2">
+            <ModeOption
+              active={!isSubscribe}
+              onClick={() => chooseMode("one-time")}
+              title="One-time"
+            />
+            <ModeOption
+              active={isSubscribe}
+              onClick={() => chooseMode("subscribe")}
+              title={`Subscribe & Save ${subQuote?.percent ?? 0}%`}
+            />
+          </div>
+        ) : null}
+
+        {!summary ? (
           <p className="text-sm text-muted-foreground">Loading...</p>
         ) : (
           <>
             <ul className="space-y-3">
-              {quote.items.map((item, i) => (
+              {summaryItems.map((item, i) => (
                 <li key={i} className="flex justify-between gap-3 text-sm">
                   <span className="text-muted-foreground">
                     {item.name}
@@ -302,58 +391,81 @@ export function CheckoutClient() {
               ))}
             </ul>
 
-            {/* Promo code */}
-            <div className="border-t border-border pt-4">
-              {quote.appliedCode ? (
-                <div className="flex items-center justify-between rounded-lg bg-clay/10 px-3 py-2 text-sm">
-                  <span className="font-medium text-clay">
-                    {quote.appliedCode} applied
-                  </span>
-                  <button
-                    type="button"
-                    aria-label="Remove code"
-                    onClick={() => {
-                      setAppliedCode("");
-                      setCodeInput("");
-                    }}
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="size-4" />
-                  </button>
+            {isSubscribe ? (
+              <div className="space-y-2 border-t border-border pt-4">
+                <p className="text-sm font-medium">Delivery frequency</p>
+                <div className="flex flex-wrap gap-2">
+                  {INTERVALS.map((opt) => (
+                    <button
+                      key={opt.count}
+                      type="button"
+                      onClick={() => setInterval(opt.count)}
+                      className={cn(
+                        "rounded-full border px-3 py-1.5 text-xs transition-colors",
+                        interval === opt.count
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border hover:border-foreground",
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
                 </div>
-              ) : (
-                <div className="flex gap-2">
-                  <Input
-                    value={codeInput}
-                    onChange={(e) => setCodeInput(e.target.value)}
-                    placeholder="Promo code"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && codeInput.trim()) {
-                        e.preventDefault();
-                        setAppliedCode(codeInput.trim());
-                      }
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={!codeInput.trim()}
-                    onClick={() => setAppliedCode(codeInput.trim())}
-                  >
-                    Apply
-                  </Button>
-                </div>
-              )}
-              {quote.discountError ? (
-                <p className="mt-1.5 text-xs text-destructive">
-                  {quote.discountError}
-                </p>
-              ) : null}
-            </div>
+              </div>
+            ) : (
+              /* Promo code (one-time only) */
+              <div className="border-t border-border pt-4">
+                {quote?.appliedCode ? (
+                  <div className="flex items-center justify-between rounded-lg bg-clay/10 px-3 py-2 text-sm">
+                    <span className="font-medium text-clay">
+                      {quote.appliedCode} applied
+                    </span>
+                    <button
+                      type="button"
+                      aria-label="Remove code"
+                      onClick={() => {
+                        setAppliedCode("");
+                        setCodeInput("");
+                      }}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Input
+                      value={codeInput}
+                      onChange={(e) => setCodeInput(e.target.value)}
+                      placeholder="Promo code"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && codeInput.trim()) {
+                          e.preventDefault();
+                          setAppliedCode(codeInput.trim());
+                        }
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={!codeInput.trim()}
+                      onClick={() => setAppliedCode(codeInput.trim())}
+                    >
+                      Apply
+                    </Button>
+                  </div>
+                )}
+                {quote?.discountError ? (
+                  <p className="mt-1.5 text-xs text-destructive">
+                    {quote.discountError}
+                  </p>
+                ) : null}
+              </div>
+            )}
 
             <div className="space-y-1.5 border-t border-border pt-4 text-sm">
-              <Row label="Subtotal" value={formatPrice(quote.subtotalCents)} />
-              {quote.discountCents > 0 ? (
+              <Row label="Subtotal" value={formatPrice(summary.subtotalCents)} />
+              {!isSubscribe && quote && quote.discountCents > 0 ? (
                 <div className="flex justify-between text-clay">
                   <span>
                     Discount
@@ -365,23 +477,35 @@ export function CheckoutClient() {
               <Row
                 label="Shipping"
                 value={
-                  quote.shippingCents === 0
+                  summary.shippingCents === 0
                     ? "Free"
-                    : formatPrice(quote.shippingCents)
+                    : formatPrice(summary.shippingCents)
                 }
               />
-              <Row label="Tax (HST)" value={formatPrice(quote.taxCents)} />
+              <Row label="Tax (HST)" value={formatPrice(summary.taxCents)} />
               <div className="flex justify-between border-t border-border pt-3 text-base font-medium">
-                <span>Total</span>
-                <span>{formatPrice(quote.totalCents)}</span>
+                <span>{isSubscribe ? "Per delivery" : "Total"}</span>
+                <span>{formatPrice(summary.totalCents)}</span>
               </div>
             </div>
 
-            {hasIssues ? (
+            {isSubscribe && subQuote ? (
+              <p className="text-xs text-muted-foreground">
+                {subQuote.freeShipApplied
+                  ? "Free shipping on this box. "
+                  : subQuote.freeShipThreshold
+                    ? `Spend ${formatPrice(subQuote.freeShipThreshold)}+ for free shipping. `
+                    : ""}
+                Renews every {interval === 1 ? "month" : `${interval} months`};
+                pause or cancel anytime.
+              </p>
+            ) : null}
+
+            {hasIssues && !isSubscribe ? (
               <div className="flex items-start gap-2 rounded-lg bg-destructive/10 p-3 text-xs text-destructive">
                 <Warning className="mt-0.5 size-4 shrink-0" />
                 <div>
-                  {quote.issues.map((iss, i) => (
+                  {quote!.issues.map((iss, i) => (
                     <p key={i}>
                       {iss.name}: {iss.reason}
                     </p>
@@ -392,18 +516,35 @@ export function CheckoutClient() {
 
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
-            <Button
-              size="lg"
-              className="w-full"
-              disabled={!canPlace}
-              onClick={placeOrder}
-            >
-              {placing ? (
-                <SpinnerGap className="size-4 animate-spin" />
-              ) : (
-                "Continue to payment"
-              )}
-            </Button>
+            {isSubscribe ? (
+              <Button
+                size="lg"
+                className="w-full"
+                disabled={!isAuthenticated ? placing : !canSubscribe}
+                onClick={subscribe}
+              >
+                {placing ? (
+                  <SpinnerGap className="size-4 animate-spin" />
+                ) : !isAuthenticated ? (
+                  "Sign in to subscribe"
+                ) : (
+                  "Start subscription"
+                )}
+              </Button>
+            ) : (
+              <Button
+                size="lg"
+                className="w-full"
+                disabled={!canPlace}
+                onClick={placeOrder}
+              >
+                {placing ? (
+                  <SpinnerGap className="size-4 animate-spin" />
+                ) : (
+                  "Continue to payment"
+                )}
+              </Button>
+            )}
             <p className="text-center text-xs text-muted-foreground">
               You will be redirected to our secure Stripe checkout.
             </p>
@@ -417,12 +558,14 @@ export function CheckoutClient() {
 function FulfillmentOption({
   active,
   onClick,
+  disabled,
   icon,
   title,
   subtitle,
 }: {
   active: boolean;
   onClick: () => void;
+  disabled?: boolean;
   icon: React.ReactNode;
   title: string;
   subtitle: string;
@@ -431,9 +574,13 @@ function FulfillmentOption({
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       className={cn(
         "rounded-2xl border p-4 text-left transition-colors",
-        active ? "border-primary bg-primary/5" : "border-border hover:border-foreground",
+        active
+          ? "border-primary bg-primary/5"
+          : "border-border hover:border-foreground",
+        disabled && "cursor-not-allowed opacity-40 hover:border-border",
       )}
     >
       <span className={cn("flex", active ? "text-clay" : "text-foreground")}>
@@ -441,6 +588,31 @@ function FulfillmentOption({
       </span>
       <p className="mt-2 text-sm font-medium">{title}</p>
       <p className="text-xs text-muted-foreground">{subtitle}</p>
+    </button>
+  );
+}
+
+function ModeOption({
+  active,
+  onClick,
+  title,
+}: {
+  active: boolean;
+  onClick: () => void;
+  title: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-xl border p-2.5 text-center text-sm font-medium transition-colors",
+        active
+          ? "border-primary bg-primary/5"
+          : "border-border hover:border-foreground",
+      )}
+    >
+      {title}
     </button>
   );
 }

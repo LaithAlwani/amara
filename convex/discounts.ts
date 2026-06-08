@@ -144,6 +144,37 @@ export const setSubscriptionDiscount = mutation({
   },
 });
 
+// Free-shipping threshold (cents). Applied to subscription boxes; null/0 means
+// no free shipping.
+export const getFreeShipThreshold = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+    const settings = await ctx.db
+      .query("settings")
+      .withIndex("by_key", (q) => q.eq("key", "global"))
+      .unique();
+    return settings?.freeShippingThresholdCents ?? 0;
+  },
+});
+
+export const setFreeShipThreshold = mutation({
+  args: { cents: v.number() },
+  handler: async (ctx, { cents }) => {
+    await requireAdmin(ctx);
+    if (cents < 0) throw new Error("Threshold can't be negative.");
+    const settings = await ctx.db
+      .query("settings")
+      .withIndex("by_key", (q) => q.eq("key", "global"))
+      .unique();
+    if (!settings) throw new Error("Settings not configured.");
+    await ctx.db.patch("settings", settings._id, {
+      freeShippingThresholdCents: cents > 0 ? Math.round(cents) : undefined,
+    });
+    return { ok: true };
+  },
+});
+
 export const createCode = mutation({
   args: {
     code: v.string(),

@@ -48,62 +48,21 @@ function currentPeriodEndMs(sub: Stripe.Subscription): number | undefined {
   return undefined;
 }
 
-// Retrieve the subscription (+ customer) from Stripe and upsert our record.
-// Idempotent; safe to call from both checkout-completed and invoice-paid.
-async function ensureSubscriptionRecorded(
+// Activate our draft subscription from the Stripe subscription. The draft id is
+// carried in the Stripe subscription metadata. Idempotent; safe from both
+// checkout-completed and invoice-paid.
+async function ensureActivated(
   ctx: ActionCtx,
   stripe: Stripe,
   subscriptionId: string,
 ): Promise<void> {
-  const sub = await stripe.subscriptions.retrieve(subscriptionId, {
-    expand: ["customer"],
-  });
-  const meta = sub.metadata ?? {};
-  if (!meta.userId || !meta.variantId) return; // not one of ours
-
-  const customer = sub.customer;
-  let email = meta.email ?? "";
-  let shippingAddress:
-    | {
-        name: string;
-        line1: string;
-        line2?: string;
-        city: string;
-        province: string;
-        postalCode: string;
-        country: string;
-        phone?: string;
-      }
-    | undefined;
-  if (customer && typeof customer !== "string" && !customer.deleted) {
-    email = customer.email ?? email;
-    const sh = customer.shipping;
-    if (sh?.address) {
-      shippingAddress = {
-        name: sh.name ?? "",
-        line1: sh.address.line1 ?? "",
-        line2: sh.address.line2 ?? undefined,
-        city: sh.address.city ?? "",
-        province: sh.address.state ?? "",
-        postalCode: sh.address.postal_code ?? "",
-        country: sh.address.country ?? "CA",
-        phone: sh.phone ?? undefined,
-      };
-    }
-  }
-  const stripeCustomerId =
-    typeof sub.customer === "string" ? sub.customer : sub.customer.id;
-
-  await ctx.runMutation(internal.subscriptions.upsertSubscription, {
+  const sub = await stripe.subscriptions.retrieve(subscriptionId);
+  const draftId = sub.metadata?.subscriptionDraftId;
+  if (!draftId) return; // not one of ours
+  await ctx.runMutation(internal.subscriptions.activateSubscription, {
+    subscriptionId: draftId as Id<"subscriptions">,
     stripeSubscriptionId: sub.id,
-    stripeCustomerId,
-    userId: meta.userId as Id<"users">,
-    email,
-    variantId: meta.variantId as Id<"productVariants">,
-    quantity: Number(meta.quantity ?? "1"),
-    intervalCount: Number(meta.intervalCount ?? "1"),
     status: mapSubStatus(sub),
-    shippingAddress,
     currentPeriodEnd: currentPeriodEndMs(sub),
   });
 }
@@ -192,30 +151,35 @@ export const createCheckoutSession = action({
   },
 });
 
-// Subscribe & Save: create a Stripe Checkout Session in subscription mode for
-// a single variant. Requires sign-in (subscriptions are account-bound).
-export const createSubscriptionCheckout = action({
+// Subscribe & Save: turn the signed-in shopper's whole cart into one recurring
+// "box" (a Stripe subscription with a line per cart item + shipping + tax).
+export const createCartSubscriptionCheckout = action({
   args: {
-    variantId: v.id("productVariants"),
-    quantity: v.number(),
+    anonId: v.optional(v.string()),
     intervalCount: v.number(),
+    email: v.string(),
+    shippingAddress: v.object({
+      name: v.string(),
+      line1: v.string(),
+      line2: v.optional(v.string()),
+      city: v.string(),
+      province: v.string(),
+      postalCode: v.string(),
+      country: v.string(),
+      phone: v.optional(v.string()),
+    }),
     origin: v.string(),
   },
-  handler: async (ctx, { variantId, quantity, intervalCount, origin }) => {
+  handler: async (ctx, { anonId, intervalCount, email, shippingAddress, origin }) => {
     const user = await ctx.runQuery(
       internal.subscriptions.getUserForCheckout,
       {},
     );
     if (!user) throw new Error("Please sign in to subscribe.");
-    const vc = await ctx.runQuery(internal.subscriptions.getVariantContext, {
-      variantId,
-    });
-    if (!vc) throw new Error("This product can't be subscribed to right now.");
-
-    const qty = Math.max(1, Math.round(quantity));
     const ic = [1, 2, 3].includes(intervalCount) ? intervalCount : 1;
     const stripe = stripeClient();
 
+    // Ensure a Stripe customer up front so the draft can store its id.
     let customerId = user.stripeCustomerId;
     if (!customerId) {
       const customer = await stripe.customers.create({
@@ -229,63 +193,60 @@ export const createSubscriptionCheckout = action({
       });
     }
 
-    const recurring = { interval: "month" as const, interval_count: ic };
-    const subtotal = vc.unitPriceCents * qty;
-    const taxCents = vc.taxRatePpm
-      ? Math.round(((subtotal + vc.shippingCents) * vc.taxRatePpm) / 1_000_000)
-      : 0;
-
-    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
+    const draft = await ctx.runMutation(
+      internal.subscriptions.createSubscriptionDraft,
       {
-        quantity: qty,
+        anonId,
+        intervalCount: ic,
+        email: email.trim().toLowerCase(),
+        stripeCustomerId: customerId,
+        shippingAddress,
+      },
+    );
+
+    const recurring = { interval: "month" as const, interval_count: ic };
+    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] =
+      draft.lines.map((l) => ({
+        quantity: l.quantity,
         price_data: {
           currency: "cad",
-          unit_amount: vc.unitPriceCents,
+          unit_amount: l.unitPriceCents,
           recurring,
-          product_data: { name: `${vc.productName} (${vc.variantTitle})` },
+          product_data: { name: l.name },
         },
-      },
-    ];
-    if (vc.shippingCents > 0) {
+      }));
+    if (draft.shippingCents > 0) {
       lineItems.push({
         quantity: 1,
         price_data: {
           currency: "cad",
-          unit_amount: vc.shippingCents,
+          unit_amount: draft.shippingCents,
           recurring,
           product_data: { name: "Shipping" },
         },
       });
     }
-    if (taxCents > 0) {
+    if (draft.taxCents > 0) {
       lineItems.push({
         quantity: 1,
         price_data: {
           currency: "cad",
-          unit_amount: taxCents,
+          unit_amount: draft.taxCents,
           recurring,
           product_data: { name: "Tax (HST)" },
         },
       });
     }
 
-    const metadata = {
-      userId: user.userId,
-      variantId,
-      productId: vc.productId,
-      quantity: String(qty),
-      intervalCount: String(ic),
-    };
-
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: customerId,
       line_items: lineItems,
-      shipping_address_collection: { allowed_countries: ["CA"] },
-      metadata,
-      subscription_data: { metadata },
+      subscription_data: {
+        metadata: { subscriptionDraftId: draft.subscriptionId },
+      },
       success_url: `${origin}/account/subscriptions?new=1`,
-      cancel_url: `${origin}/shop`,
+      cancel_url: `${origin}/checkout`,
     });
     if (!session.url) throw new Error("Stripe did not return a checkout URL.");
     return { url: session.url };
@@ -375,7 +336,7 @@ export const handleStripeWebhook = internalAction({
             typeof s.subscription === "string"
               ? s.subscription
               : s.subscription.id;
-          await ensureSubscriptionRecorded(ctx, stripe, subId);
+          await ensureActivated(ctx, stripe, subId);
         } else if (s.payment_status === "paid") {
           await ctx.runMutation(internal.orders.finalizeOrderPaid, {
             sessionId: s.id,
@@ -420,7 +381,7 @@ export const handleStripeWebhook = internalAction({
         const subId =
           typeof subRef === "string" ? subRef : (subRef?.id ?? null);
         if (subId && inv.id) {
-          await ensureSubscriptionRecorded(ctx, stripe, subId);
+          await ensureActivated(ctx, stripe, subId);
           await ctx.runMutation(internal.subscriptions.createCycleOrder, {
             stripeSubscriptionId: subId,
             stripeInvoiceId: inv.id,

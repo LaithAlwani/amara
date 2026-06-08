@@ -963,8 +963,33 @@ Every decision should answer:
 
 **Deferred:** pickup subscriptions (ship-only for now); changing quantity/interval after creation (cancel + resubscribe); whole-cart subscriptions; per-product subscribe opt-out; proration/skip-next-delivery.
 
+**⚠️ Superseded by Phase 14** — single-item per-product subscriptions were reworked into multi-item cart "boxes". The Phase-13 details below are historical.
+
 **How to test Phase 13:** dev with `stripe listen` running, signed in.
 1. On a PDP, pick **Subscribe & Save** → a frequency → **Subscribe** → Stripe subscription checkout (it collects the shipping address) → pay `4242 4242 4242 4242`.
 2. Land on `/account/subscriptions` → the active subscription shows with next-delivery date; a **paid order** appears in `/admin/orders` (inventory dropped, confirmation email sent).
 3. **Pause** → Stripe stops billing; **Resume**; **Cancel** → status flips to canceled (Stripe `stripe trigger invoice.paid` or the CLI clock can simulate a renewal → a new cycle order is created, idempotent per invoice).
 4. Admin → **Discounts** → change the Subscribe & Save % → the PDP recurring price updates.
+
+**Phase 13 verification (2026-06-08):** drove the webhook pipeline via the Stripe CLI (created a test subscription with `userId`/`variantId` metadata) — confirmed: subscription recorded with the 15%-discounted price, `invoice.paid` → a paid cycle order with the Stripe shipping address + correct totals, and `customer.subscription.deleted` synced our status to canceled. Test data was purged in Phase 14.
+
+## Phase 14 — Multi-item subscription "box" (reworks Phase 13) ✅ (2026-06-08)
+**Why:** a customer should bundle several products into ONE recurring delivery (one shipping charge, free over $X), not a separate single-item subscription per product.
+
+**Done:**
+- **Schema** — `subscriptions` reworked from single-item to a box: `{ user, email, stripeCustomerId, stripeSubscriptionId?, status draft|active|paused|past_due|canceled, intervalCount, subtotalCents, shippingCents, shippingAddress, cartId?, currentPeriodEnd }` + a child **`subscriptionItems`** table (per-line snapshots). Old single-item test data purged first (one-off mutation, removed after).
+- **Whole-cart subscribe at checkout** — the PDP subscribe toggle is gone (plain add-to-bag again, with a "Subscribe & Save at checkout" hint). The checkout summary has a **One-time vs Subscribe & Save N%** toggle; subscribe is **ship-only** (pickup disabled), shows a frequency picker (Monthly / every 2 / every 3 months), a live `subscriptions.quoteSubscription`, and hides promo codes.
+- **Draft → activate flow** — `createCartSubscriptionCheckout` (action) snapshots the cart into a **draft** subscription + items (`createSubscriptionDraft`), then opens a Stripe `mode:subscription` session with a recurring line per item + shipping + tax, carrying `subscription_data.metadata.subscriptionDraftId`. Webhook `ensureActivated` reads that draft id, attaches the Stripe ids, flips draft→active, and clears the source cart. `invoice.paid` → `createCycleOrder` snapshots **all** box items into a paid order (multi-line), decrements each variant's stock, emails the receipt. Pause/resume/cancel unchanged.
+- **Free shipping on the box** — `freeShippingThresholdCents` (seeded $90) now applies: a box ships free once its discounted subtotal clears the threshold. Admin-editable on `/admin/discounts` (alongside the Subscribe & Save %). One-time checkout still uses flat shipping (unchanged).
+- **Account** — `/account/subscriptions` lists each box's **multiple items**, per-delivery total, frequency, next date, and Pause/Resume/Cancel.
+- `tsc` clean; `eslint` clean (also fixed the long-standing email-prefill `set-state-in-effect` warning); `next build` green; Convex deployed (schema migrated).
+
+**Deferred:** editing a box's items/frequency after creation (cancel + re-subscribe); pickup subscriptions; per-customer free-ship variations; skip-next-delivery; applying the free-ship threshold to one-time checkout (left flat per earlier instruction).
+
+**How to test Phase 14:** dev with `stripe listen` running, **signed in**.
+1. Add **several products** to the bag → `/checkout` → in the summary switch to **Subscribe & Save** → pick a frequency. Pickup is disabled; the totals show the discounted per-item prices and **free shipping if the box ≥ the threshold**.
+2. **Start subscription** → Stripe subscription checkout → pay `4242 4242 4242 4242` → land on `/account/subscriptions`: one box listing **all** items, per-delivery total, next date.
+3. A **paid order** with all items appears in `/admin/orders` (stock dropped per item, email sent). **Pause/Resume/Cancel** from the account page.
+4. Admin → **Discounts**: change **Subscribe & Save %** and **Free shipping over $** → reflected in the checkout subscribe summary.
+
+*(Full E2E needs the browser Stripe checkout — auth + cart are required, so it can't be driven purely from the CLI like the Phase-13 single-item path.)*

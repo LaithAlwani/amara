@@ -82,10 +82,7 @@ export default async function ProductPage({
           ) : null}
 
           <div className="mt-8">
-            <ProductPurchasePanel
-              variants={product.variants}
-              subscriptionDiscountPercent={product.subscriptionDiscountPercent}
-            />
+            <ProductPurchasePanel variants={product.variants} />
           </div>
 
           <div className="mt-4">

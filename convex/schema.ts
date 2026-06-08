@@ -170,31 +170,42 @@ export default defineSchema({
     .index("by_stripeInvoiceId", ["stripeInvoiceId"])
     .index("by_status", ["status"]),
 
-  // --- Subscriptions (Subscribe & Save, via Stripe Billing) ---------------
+  // --- Subscriptions (Subscribe & Save box, via Stripe Billing) -----------
+  // A subscription is a recurring "box" of one or more items (subscriptionItems).
+  // Created as `draft` before redirecting to Stripe, then activated by webhook.
   subscriptions: defineTable({
     userId: v.id("users"),
     email: v.string(),
     stripeCustomerId: v.string(),
-    stripeSubscriptionId: v.string(),
+    stripeSubscriptionId: v.optional(v.string()), // set on activation
     status: v.union(
+      v.literal("draft"),
       v.literal("active"),
       v.literal("paused"),
       v.literal("past_due"),
       v.literal("canceled"),
     ),
-    productId: v.id("products"),
-    variantId: v.id("productVariants"),
-    nameSnapshot: v.string(),
-    variantTitleSnapshot: v.string(),
-    quantity: v.number(),
     intervalCount: v.number(), // months between deliveries
-    unitPriceCents: v.number(), // discounted per-unit price
-    shippingCents: v.number(),
+    subtotalCents: v.number(), // sum of discounted item line totals
+    shippingCents: v.number(), // flat, or 0 when over the free-ship threshold
     shippingAddress: v.optional(addressValidator),
+    cartId: v.optional(v.id("carts")), // source cart, cleared on activation
     currentPeriodEnd: v.optional(v.number()),
   })
     .index("by_user", ["userId"])
     .index("by_stripeSubscriptionId", ["stripeSubscriptionId"]),
+
+  subscriptionItems: defineTable({
+    subscriptionId: v.id("subscriptions"),
+    productId: v.id("products"),
+    variantId: v.id("productVariants"),
+    nameSnapshot: v.string(),
+    variantTitleSnapshot: v.string(),
+    skuSnapshot: v.string(),
+    quantity: v.number(),
+    unitPriceCents: v.number(), // discounted per-unit price
+    weightGramsSnapshot: v.number(),
+  }).index("by_subscription", ["subscriptionId"]),
 
   orderItems: defineTable({
     orderId: v.id("orders"),

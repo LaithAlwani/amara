@@ -29,9 +29,15 @@ export function AdminDiscounts() {
   const deleteCode = useMutation(api.discounts.deleteCode);
   const subDiscount = useQuery(api.discounts.getSubscriptionDiscount);
   const setSubDiscount = useMutation(api.discounts.setSubscriptionDiscount);
+  const freeShip = useQuery(api.discounts.getFreeShipThreshold);
+  const setFreeShip = useMutation(api.discounts.setFreeShipThreshold);
   const confirm = useConfirm();
   const [subPct, setSubPct] = useState<string | null>(null);
   const subValue = subPct ?? (subDiscount !== undefined ? String(subDiscount) : "");
+  const [freeShipInput, setFreeShipInput] = useState<string | null>(null);
+  const freeShipValue =
+    freeShipInput ??
+    (freeShip !== undefined ? (freeShip / 100).toFixed(2) : "");
 
   const [code, setCode] = useState("");
   const [kind, setKind] = useState<"percent" | "fixed">("percent");
@@ -111,8 +117,41 @@ export function AdminDiscounts() {
         >
           Save
         </Button>
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">
+            Free shipping over ($) — subscriptions
+          </Label>
+          <Input
+            type="number"
+            min="0"
+            step="0.01"
+            className="w-32"
+            value={freeShipValue}
+            placeholder="0 = off"
+            onChange={(e) => setFreeShipInput(e.target.value)}
+          />
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={async () => {
+            const d = parseFloat(freeShipValue || "0");
+            if (Number.isNaN(d)) return toast.error("Enter an amount");
+            try {
+              await setFreeShip({ cents: Math.round(d * 100) });
+              toast.success("Free-shipping threshold updated");
+              setFreeShipInput(null);
+            } catch (e) {
+              toast.error(e instanceof Error ? e.message : "Failed");
+            }
+          }}
+        >
+          Save
+        </Button>
         <p className="text-xs text-muted-foreground">
-          Applied to every product&apos;s recurring price on the storefront.
+          Subscribe &amp; Save applies to each product&apos;s recurring price;
+          subscription boxes ship free over the threshold.
         </p>
       </div>
 
