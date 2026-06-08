@@ -17,7 +17,6 @@ export type ProductFormValues = {
   status: ProductStatus;
   priceCents: number;
   compareAtCents?: number;
-  imageUrls: string[];
 };
 
 export type ProductFormInitial = Partial<ProductFormValues>;
@@ -61,7 +60,6 @@ export function ProductForm({
   );
   const [price, setPrice] = useState(dollars(initial?.priceCents));
   const [compareAt, setCompareAt] = useState(dollars(initial?.compareAtCents));
-  const [images, setImages] = useState((initial?.imageUrls ?? []).join("\n"));
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
@@ -78,10 +76,6 @@ export function ProductForm({
         status,
         priceCents,
         compareAtCents: toCents(compareAt),
-        imageUrls: images
-          .split("\n")
-          .map((u) => u.trim())
-          .filter(Boolean),
       });
     } finally {
       setBusy(false);
@@ -179,21 +173,10 @@ export function ProductForm({
         </div>
       </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="images">Image URLs (one per line)</Label>
-        <textarea
-          id="images"
-          value={images}
-          rows={3}
-          onChange={(e) => setImages(e.target.value)}
-          placeholder="https://…"
-          className={fieldClass}
-        />
-        <p className="text-xs text-muted-foreground">
-          The display price shown here is a fallback; the authoritative price is
-          per variant below.
-        </p>
-      </div>
+      <p className="text-xs text-muted-foreground">
+        The price shown here is the card/fallback display price; the
+        authoritative price is set per variant below.
+      </p>
 
       <Button type="submit" disabled={busy}>
         {submitLabel}

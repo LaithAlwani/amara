@@ -59,7 +59,8 @@ export const listProducts = query({
   },
 });
 
-// One product with its full variant list, for the edit screen.
+// One product with its full variant list + resolved image URLs, for the edit
+// screen. Images come from `imageStorageIds` (uploaded to Convex storage).
 export const getProduct = query({
   args: { productId: v.id("products") },
   handler: async (ctx, { productId }) => {
@@ -67,7 +68,14 @@ export const getProduct = query({
     const product = await ctx.db.get("products", productId);
     if (!product) return null;
     const variants = await loadVariants(ctx, productId);
-    return { product, variants };
+
+    const images: { storageId: Id<"_storage">; url: string }[] = [];
+    for (const id of product.imageStorageIds ?? []) {
+      const url = await ctx.storage.getUrl(id);
+      if (url) images.push({ storageId: id, url });
+    }
+
+    return { product, variants, images };
   },
 });
 
@@ -96,13 +104,13 @@ export const createProduct = mutation({
     status: productStatus,
     priceCents: v.number(),
     compareAtCents: v.optional(v.number()),
-    imageUrls: v.array(v.string()),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
     const slug = args.slug.trim().toLowerCase();
     if (!slug) throw new Error("A slug is required.");
     await assertSlugFree(ctx, slug);
+    // Images are added on the edit screen via uploads (imageStorageIds).
     const productId = await ctx.db.insert("products", {
       name: args.name.trim(),
       slug,
@@ -111,12 +119,14 @@ export const createProduct = mutation({
       status: args.status,
       priceCents: args.priceCents,
       compareAtCents: args.compareAtCents,
-      imageUrls: args.imageUrls.filter((u) => u.trim().length > 0),
+      imageUrls: [],
     });
     return { productId };
   },
 });
 
+// Note: images are managed separately (setProductImages) and intentionally not
+// touched here, so saving product fields never disturbs the gallery.
 export const updateProduct = mutation({
   args: {
     productId: v.id("products"),
@@ -127,7 +137,6 @@ export const updateProduct = mutation({
     status: productStatus,
     priceCents: v.number(),
     compareAtCents: v.optional(v.number()),
-    imageUrls: v.array(v.string()),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
@@ -142,8 +151,39 @@ export const updateProduct = mutation({
       status: args.status,
       priceCents: args.priceCents,
       compareAtCents: args.compareAtCents,
-      imageUrls: args.imageUrls.filter((u) => u.trim().length > 0),
     });
+    return { ok: true };
+  },
+});
+
+// --- Image uploads -----------------------------------------------------------
+
+// Short-lived URL the admin client POSTs an image file to; the POST returns a
+// `storageId` which is then saved via setProductImages.
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+// Replace a product's ordered image list (index 0 = cover). Any storage object
+// dropped from the list is deleted so we don't leak orphaned blobs.
+export const setProductImages = mutation({
+  args: {
+    productId: v.id("products"),
+    storageIds: v.array(v.id("_storage")),
+  },
+  handler: async (ctx, { productId, storageIds }) => {
+    await requireAdmin(ctx);
+    const product = await ctx.db.get("products", productId);
+    if (!product) throw new Error("Product not found.");
+    const previous = product.imageStorageIds ?? [];
+    for (const id of previous) {
+      if (!storageIds.includes(id)) await ctx.storage.delete(id);
+    }
+    await ctx.db.patch("products", productId, { imageStorageIds: storageIds });
     return { ok: true };
   },
 });

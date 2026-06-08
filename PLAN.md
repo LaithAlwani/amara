@@ -899,3 +899,17 @@ Every decision should answer:
 2. **New product** → fill the form (slug auto-fills from name) → Create → lands on the edit screen → **Add a variant** (title/SKU/price/stock/weight) → it appears in the live list.
 3. Edit an existing product's price/description/status → **Save product** → reflected in the list and on the storefront (active products only).
 4. Edit a variant's **Stock** to ≤5 → low-stock warning appears here and on the list; set a product to **Archived** → it drops off the storefront but stays in admin.
+
+## Phase 10 — Product image uploads ✅ (2026-06-08)
+**Done:**
+- **Convex storage uploads** — `convex/adminCatalog.ts`: `generateUploadUrl` (admin) hands out a short-lived upload URL; the client POSTs the file and gets a `storageId`; `setProductImages(productId, storageIds[])` saves the ordered list to `products.imageStorageIds` (index 0 = cover) and **deletes any dropped blob** via `ctx.storage.delete` so storage never leaks. `getProduct` now also resolves `imageStorageIds → { storageId, url }[]` (signed URLs) for the editor. Display already prefers storage images over seed URLs (`catalog.primaryImage`/`allImages`), and `*.convex.cloud` is allowed in `next.config.ts`.
+- **Image manager UI** — `components/admin/product-images.tsx` on the product edit screen: drag-free **Upload** (multi-file, image-only), thumbnail grid, **set cover** (Star → moves to front), **reorder** (←/→), and **remove**. Every action re-saves the ordered `storageIds`; the list is reactive via `getProduct`.
+- **Form cleanup** — removed the image-URL paste box from `product-form.tsx` (uploads replace it). `createProduct` no longer takes `imageUrls` (starts empty; images added on the edit screen); `updateProduct` no longer touches images, so saving product fields never disturbs the gallery. Seeded products keep their picsum `imageUrls` as a fallback until an admin uploads.
+- `tsc` clean; `eslint` clean; `next build` green; Convex deployed.
+
+**Deferred:** true drag-and-drop reordering (using ←/→ + set-cover for now); collection image uploads (same pattern, not wired).
+
+**How to test Phase 10:** signed in as admin → **Products** → open a product (or create one).
+1. In the **Images** section, **Upload** one or more images → thumbnails appear; the first is badged **Cover**.
+2. **Set cover** on another / reorder with ←/→ / **remove** one → changes persist and reflect live.
+3. Open that product on the storefront (`/products/[slug]`) → the uploaded image is now the gallery/card image (it overrides the seed picsum). Removing all uploads falls back to the seed image.

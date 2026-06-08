@@ -9,6 +9,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ProductForm, type ProductFormValues } from "./product-form";
+import { ProductImages } from "./product-images";
 import { VariantManager } from "./variant-manager";
 
 export function AdminProductDetail({ productId }: { productId: string }) {
@@ -69,12 +70,15 @@ export function AdminProductDetail({ productId }: { productId: string }) {
             status: product.status,
             priceCents: product.priceCents,
             compareAtCents: product.compareAtCents,
-            imageUrls: product.imageUrls,
           }}
           submitLabel="Save product"
           onSubmit={onSubmit}
         />
       </div>
+
+      <Separator className="my-10" />
+
+      <ProductImages productId={id} images={data.images} />
 
       <Separator className="my-10" />
 
