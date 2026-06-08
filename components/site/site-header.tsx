@@ -127,7 +127,7 @@ export function SiteHeader() {
                 </DropdownMenuItem>
                 {me?.role === "admin" && (
                   <DropdownMenuItem asChild>
-                    <Link href="/admin/orders">Admin</Link>
+                    <Link href="/admin">Admin</Link>
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />

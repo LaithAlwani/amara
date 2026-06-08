@@ -9,6 +9,7 @@ import { api } from "@/convex/_generated/api";
 import { cn } from "@/lib/utils";
 
 const ADMIN_NAV = [
+  { href: "/admin", label: "Dashboard" },
   { href: "/admin/orders", label: "Orders" },
   { href: "/admin/products", label: "Products" },
   { href: "/admin/collections", label: "Collections" },
@@ -53,7 +54,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       <nav className="mt-4 flex gap-1">
         {ADMIN_NAV.map((item) => {
           const active =
-            pathname === item.href || pathname.startsWith(item.href + "/");
+            item.href === "/admin"
+              ? pathname === "/admin"
+              : pathname === item.href || pathname.startsWith(item.href + "/");
           return (
             <Link
               key={item.href}

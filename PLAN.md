@@ -1007,3 +1007,16 @@ Every decision should answer:
 1. The 2 seeded collections list with product counts + published status.
 2. **New collection** → fill the form → Create → on the edit screen **Add products** (picker), **reorder** with ↑/↓, **upload a cover**.
 3. Set **Published** on → it appears on `/collections`; toggle off → it drops from the storefront. Reorder/membership/cover changes reflect on the collection page.
+
+## Phase 16 — Analytics dashboard ✅ (2026-06-08)
+**Done:**
+- **Backend** — `convex/adminAnalytics.ts` `getOverview({ sinceDays? })` (`requireAdmin`): over a window (30/90 days or all time) sums **revenue** (paid + fulfilled order totals), **order count**, **AOV**, **units sold**; aggregates **top products** (units + revenue from `orderItems`); lists **low-stock** active variants (≤ `LOW_STOCK_THRESHOLD`); and the **recent orders** feed (latest non-pending). Bounded scans — fine at MVP scale; swap to cron rollups if volume grows.
+- **Frontend** — `/admin` is now the dashboard home (`admin-dashboard.tsx`): a 30d/90d/All window toggle, four KPI cards (Revenue / Orders / Avg order / Units), Top products + Low stock cards, and a recent-orders list linking to each order. Added **Dashboard** as the first admin-nav item (with an exact-match active state) and pointed the account menu's **Admin** link at `/admin`.
+- `tsc` clean; `eslint` clean; `next build` green (`/admin` compiles); Convex deployed.
+
+**Deferred:** time-series charts / trends; conversion funnel + traffic analytics (needs event tracking); customer LTV/retention; CSV export.
+
+**How to test Phase 16:** admin → account menu → **Admin** (or `/admin`).
+1. KPIs show revenue/orders/AOV/units for the selected window; switch **30d / 90d / All**.
+2. **Top products** ranks by revenue; **Low stock** lists variants ≤5; **Recent orders** links through to `/admin/orders/[id]`.
+3. Place/pay a test order → the numbers update live (Convex reactivity).
