@@ -946,3 +946,25 @@ Every decision should answer:
 1. **Admin → Discounts** → create e.g. `WELCOME10` = 10% off (optionally min spend / usage limit / expiry).
 2. Add items, go to `/checkout` → enter `WELCOME10` → **Apply** → the discount line appears, **tax + total drop**, and the code chip shows. A bad/expired code shows an inline error.
 3. **Continue to payment** → the Stripe hosted total matches the discounted order total → pay with `4242…` → `/checkout/success` and the email both show the discount line; the code's **Used** count ticks up in admin.
+
+## Phase 13 — Subscriptions (Subscribe & Save, Stripe Billing) ✅ (built; needs webhook events to test) (2026-06-08)
+**Done:**
+- **Schema** — `subscriptions` table (user, Stripe customer/subscription ids, status active/paused/past_due/canceled, variant + snapshots, quantity, intervalCount months, discounted unitPriceCents, shippingCents, shippingAddress, currentPeriodEnd). `users.stripeCustomerId`; `settings.subscriptionDiscountPercent` (seeded **15%**); `orders.subscriptionId` + `orders.stripeInvoiceId` (+ `by_stripeInvoiceId` index) for per-cycle renewal orders.
+- **Checkout** — `payments.createSubscriptionCheckout` (action, **sign-in required**) builds a Stripe **`mode: "subscription"`** Checkout Session for one variant: recurring product line at the discounted unit price + recurring Shipping + recurring Tax (so each cycle total is correct), `interval: month` × {1,2,3}, reuses/creates a Stripe **Customer** stored on the user, `shipping_address_collection`, and stamps metadata on the subscription.
+- **Webhooks** (`convex/payments.ts` + reused `/stripe/webhook`): `checkout.session.completed` now branches on `mode` (subscription → record; payment → existing one-off flow); **`invoice.paid`** → `ensureSubscriptionRecorded` (retrieves sub+customer from Stripe, idempotent upsert) then `subscriptions.createCycleOrder` → a **paid fulfillment order per cycle** (idempotent by invoice id), decrements inventory, and sends the confirmation email (reused); `customer.subscription.updated`/`deleted` → status sync (pause → `paused`).
+- **Manage** — `subscriptions.mySubscriptions` + `/account/subscriptions` (`my-subscriptions.tsx`): status, frequency, next-delivery date, **Pause/Resume/Cancel** (owner-checked actions calling Stripe). Added **Subscriptions** to the account menu.
+- **Storefront** — PDP purchase panel gains a **One-time vs Subscribe & Save N%** toggle + frequency picker (Monthly / every 2 / every 3 months); shows the discounted recurring price; "Subscribe" → Stripe (or sign-in). `getProductBySlug` surfaces the percent.
+- **Admin** — Subscribe & Save % is editable on `/admin/discounts` (`getSubscriptionDiscount`/`setSubscriptionDiscount`).
+- `tsc` clean; `eslint` clean; `next build` green; Convex deployed (schema migrated).
+
+**Cost note:** Stripe Billing adds ~0.5% to the standard 2.9% + C$0.30 on recurring charges (no separate signup — same account).
+
+**Needed to test (Stripe webhook events):** the Convex `/stripe/webhook` endpoint already handles them, but Stripe must forward: add **`invoice.paid`**, **`customer.subscription.updated`**, **`customer.subscription.deleted`** (plus the existing `checkout.session.*`). In dev, `stripe listen --forward-to …/stripe/webhook` forwards all events automatically; in prod add them to the registered endpoint.
+
+**Deferred:** pickup subscriptions (ship-only for now); changing quantity/interval after creation (cancel + resubscribe); whole-cart subscriptions; per-product subscribe opt-out; proration/skip-next-delivery.
+
+**How to test Phase 13:** dev with `stripe listen` running, signed in.
+1. On a PDP, pick **Subscribe & Save** → a frequency → **Subscribe** → Stripe subscription checkout (it collects the shipping address) → pay `4242 4242 4242 4242`.
+2. Land on `/account/subscriptions` → the active subscription shows with next-delivery date; a **paid order** appears in `/admin/orders` (inventory dropped, confirmation email sent).
+3. **Pause** → Stripe stops billing; **Resume**; **Cancel** → status flips to canceled (Stripe `stripe trigger invoice.paid` or the CLI clock can simulate a renewal → a new cycle order is created, idempotent per invoice).
+4. Admin → **Discounts** → change the Subscribe & Save % → the PDP recurring price updates.

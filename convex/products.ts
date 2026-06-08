@@ -30,6 +30,11 @@ export const getProductBySlug = query({
       .withIndex("by_product", (q) => q.eq("productId", product._id))
       .take(50);
 
+    const settings = await ctx.db
+      .query("settings")
+      .withIndex("by_key", (q) => q.eq("key", "global"))
+      .unique();
+
     return {
       _id: product._id,
       slug: product.slug,
@@ -39,6 +44,7 @@ export const getProductBySlug = query({
       priceCents: product.priceCents,
       compareAtCents: product.compareAtCents,
       images: await allImages(ctx, product),
+      subscriptionDiscountPercent: settings?.subscriptionDiscountPercent ?? 0,
       variants: variants
         .filter((variant) => variant.active)
         .map((variant) => ({

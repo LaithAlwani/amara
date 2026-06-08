@@ -27,6 +27,7 @@ export default defineSchema({
     emailVerified: v.boolean(),
     name: v.optional(v.string()),
     role: v.union(v.literal("customer"), v.literal("admin")),
+    stripeCustomerId: v.optional(v.string()), // for recurring billing
   })
     .index("by_tokenIdentifier", ["tokenIdentifier"])
     .index("by_email", ["email"])
@@ -156,6 +157,8 @@ export default defineSchema({
     cartId: v.optional(v.id("carts")), // source cart, cleared when paid
     discountCode: v.optional(v.string()),
     discountCents: v.optional(v.number()),
+    subscriptionId: v.optional(v.id("subscriptions")), // set for renewal orders
+    stripeInvoiceId: v.optional(v.string()), // subscription cycle idempotency
     stripeCheckoutSessionId: v.optional(v.string()),
     stripePaymentIntentId: v.optional(v.string()),
     paidAt: v.optional(v.number()),
@@ -164,7 +167,34 @@ export default defineSchema({
     .index("by_email", ["email"])
     .index("by_orderNumber", ["orderNumber"])
     .index("by_stripeCheckoutSessionId", ["stripeCheckoutSessionId"])
+    .index("by_stripeInvoiceId", ["stripeInvoiceId"])
     .index("by_status", ["status"]),
+
+  // --- Subscriptions (Subscribe & Save, via Stripe Billing) ---------------
+  subscriptions: defineTable({
+    userId: v.id("users"),
+    email: v.string(),
+    stripeCustomerId: v.string(),
+    stripeSubscriptionId: v.string(),
+    status: v.union(
+      v.literal("active"),
+      v.literal("paused"),
+      v.literal("past_due"),
+      v.literal("canceled"),
+    ),
+    productId: v.id("products"),
+    variantId: v.id("productVariants"),
+    nameSnapshot: v.string(),
+    variantTitleSnapshot: v.string(),
+    quantity: v.number(),
+    intervalCount: v.number(), // months between deliveries
+    unitPriceCents: v.number(), // discounted per-unit price
+    shippingCents: v.number(),
+    shippingAddress: v.optional(addressValidator),
+    currentPeriodEnd: v.optional(v.number()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_stripeSubscriptionId", ["stripeSubscriptionId"]),
 
   orderItems: defineTable({
     orderId: v.id("orders"),
@@ -273,6 +303,7 @@ export default defineSchema({
     taxRatePpm: v.optional(v.number()), // parts-per-million; 130000 = 13% HST
     activeShippingProvider: v.union(v.literal("shippo")),
     orderSeq: v.optional(v.number()), // running counter for human order numbers
+    subscriptionDiscountPercent: v.optional(v.number()), // Subscribe & Save %
   }).index("by_key", ["key"]),
 
   webhookEvents: defineTable({

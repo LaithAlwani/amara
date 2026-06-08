@@ -21,6 +21,7 @@ import type * as orders from "../orders.js";
 import type * as payments from "../payments.js";
 import type * as products from "../products.js";
 import type * as seed from "../seed.js";
+import type * as subscriptions from "../subscriptions.js";
 import type * as users from "../users.js";
 import type * as wishlist from "../wishlist.js";
 
@@ -44,6 +45,7 @@ declare const fullApi: ApiFromModules<{
   payments: typeof payments;
   products: typeof products;
   seed: typeof seed;
+  subscriptions: typeof subscriptions;
   users: typeof users;
   wishlist: typeof wishlist;
 }>;

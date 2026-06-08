@@ -26,6 +26,10 @@ export function AdminDiscounts() {
   const createCode = useMutation(api.discounts.createCode);
   const setActive = useMutation(api.discounts.setCodeActive);
   const deleteCode = useMutation(api.discounts.deleteCode);
+  const subDiscount = useQuery(api.discounts.getSubscriptionDiscount);
+  const setSubDiscount = useMutation(api.discounts.setSubscriptionDiscount);
+  const [subPct, setSubPct] = useState<string | null>(null);
+  const subValue = subPct ?? (subDiscount !== undefined ? String(subDiscount) : "");
 
   const [code, setCode] = useState("");
   const [kind, setKind] = useState<"percent" | "fixed">("percent");
@@ -70,6 +74,45 @@ export function AdminDiscounts() {
       <h1 className="font-heading text-2xl font-semibold tracking-tight">
         Discount codes
       </h1>
+
+      {/* Subscribe & Save percent */}
+      <div className="mt-6 flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-5">
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">
+            Subscribe &amp; Save discount (%)
+          </Label>
+          <Input
+            type="number"
+            min="0"
+            max="90"
+            step="1"
+            className="w-32"
+            value={subValue}
+            onChange={(e) => setSubPct(e.target.value)}
+          />
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={async () => {
+            const p = parseFloat(subValue);
+            if (Number.isNaN(p)) return toast.error("Enter a percent");
+            try {
+              await setSubDiscount({ percent: p });
+              toast.success("Subscribe & Save updated");
+              setSubPct(null);
+            } catch (e) {
+              toast.error(e instanceof Error ? e.message : "Failed");
+            }
+          }}
+        >
+          Save
+        </Button>
+        <p className="text-xs text-muted-foreground">
+          Applied to every product&apos;s recurring price on the storefront.
+        </p>
+      </div>
 
       <form
         onSubmit={onCreate}

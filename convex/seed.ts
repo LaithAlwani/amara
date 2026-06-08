@@ -206,6 +206,7 @@ export const seedCatalog = internalMutation({
       },
       taxRatePpm: 130000, // 13% Ontario HST
       activeShippingProvider: "shippo" as const,
+      subscriptionDiscountPercent: 15, // Subscribe & Save
     };
     if (existingSettings) {
       await ctx.db.patch("settings", existingSettings._id, settingsDoc);
