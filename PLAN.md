@@ -1041,3 +1041,17 @@ Built and deployed together; `tsc` + `eslint` clean, `next build` green.
 - **CMS:** `/admin/content` → change hero title + accent colour → Save → homepage updates (accent recolours site-wide).
 - **Loyalty:** pay an order → `/account/rewards` shows earned points; on a later order tick **Use points** → discount applies, total drops, balance decremented after payment.
 - **Gift cards:** `/gift-cards` → buy $25 → pay → recipient gets the emailed code; at checkout enter the code → it covers the total (leaving ≥$0.50), **Amount due** shown; after payment the card balance drops (`/admin/gift-cards`).
+
+## Phase 18 — Shippo shipping labels ✅ (built; needs SHIPPO_API_KEY to use) (2026-06-08)
+**Done:**
+- **Pluggable provider** — `convex/shipping/types.ts` (`ShippingProvider` interface: `getRates` + `buyLabel`) and `convex/shipping/shippo.ts` (Shippo REST adapter over `fetch` — `/shipments/` for rates, `/transactions/` for the label; `Authorization: ShippoToken`). New carriers = new adapters, no route/schema change. Fills the `shipments` table from Phase 1.
+- **`convex/shipments.ts`** — `getShipment` (admin) returns the order's shipment + archived label URL; internal `getShippingContext` builds the rate request (ship-from from `settings.shipFromAddress`, ship-to from the order, one parcel from `settings.defaultParcel` + summed item weights); admin **actions** `getOrderRates` (live rates, cheapest first) and `purchaseLabel` (buys the label, **downloads + archives the PDF in Convex storage**, records the shipment, flips the order to `fulfilled`/`shipped`, and emails the customer **with tracking**). All admin-gated via `amIAdmin`.
+- **Email** — the "shipped" fulfillment email now includes the **tracking number + a track link** when present.
+- **Admin UI** — a **Shipping label** card on the order detail (ship orders): **Get rates** → pick a carrier/service (price + ETA) → **Buy label** → shows carrier, label cost, tracking #, **Label PDF** + **Track parcel** links. The actual label cost (shown to the admin) can differ from the customer's flat $11.99 — the business absorbs it, per the blueprint.
+- `tsc` clean; `eslint` clean; `next build` green; Convex deployed.
+
+**Needed to use (set on the Convex deployment):** `SHIPPO_API_KEY` (a test token from the Shippo dashboard). Without it, **Get rates** errors clearly; everything else is unaffected.
+
+**Deferred:** address validation / parcel presets per product; return labels; rate caching; multi-parcel; webhook-driven `in_transit`/`delivered` tracking updates (status currently stops at `shipped`); the manual "Mark shipped" remains for non-Shippo fulfilment.
+
+**How to test Phase 18:** set `SHIPPO_API_KEY`, then admin → a **paid ship order** → **Shipping label** card → **Get rates** → **Buy label** (Shippo test mode returns a test label + tracking) → the order flips to shipped, the customer gets a tracking email, and the **Label PDF** opens (archived in Convex storage).

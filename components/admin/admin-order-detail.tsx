@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatPrice } from "@/lib/format";
 import { orderStatusBadge, fulfillmentLabel } from "./order-status";
+import { ShipmentManager } from "./shipment-manager";
 
 const dateFmt = new Intl.DateTimeFormat("en-CA", {
   dateStyle: "medium",
@@ -152,6 +153,13 @@ export function AdminOrderDetail({ orderId }: { orderId: string }) {
           )}
         </InfoCard>
       </div>
+
+      {order.fulfillmentMethod === "ship" &&
+      (order.status === "paid" || order.status === "fulfilled") ? (
+        <div className="mt-4">
+          <ShipmentManager orderId={order._id} />
+        </div>
+      ) : null}
 
       <div className="mt-4 rounded-xl border border-border bg-card p-5">
         <ul className="space-y-2">

@@ -16,6 +16,7 @@ const ADMIN_NAV = [
   { href: "/admin/discounts", label: "Discounts" },
   { href: "/admin/gift-cards", label: "Gift cards" },
   { href: "/admin/content", label: "Content" },
+  { href: "/admin/settings", label: "Settings" },
 ];
 
 // Client-side admin gate. The real security boundary is `requireAdmin` inside

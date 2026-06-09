@@ -318,8 +318,10 @@ export const sendFulfillmentEmail = internalAction({
       v.literal("picked_up"),
       v.literal("shipped"),
     ),
+    trackingNumber: v.optional(v.string()),
+    trackingUrl: v.optional(v.string()),
   },
-  handler: async (ctx, { orderId, kind }) => {
+  handler: async (ctx, { orderId, kind, trackingNumber, trackingUrl }) => {
     const order = await ctx.runQuery(internal.orders.getOrderForEmail, {
       orderId,
     });
@@ -351,7 +353,13 @@ export const sendFulfillmentEmail = internalAction({
       shipped: {
         subject: `Your Amara order ${order.orderNumber} is on its way`,
         heading: "Your order has shipped",
-        intro: `Order ${num} is on its way. We'll follow up if there's tracking to share.`,
+        intro: trackingNumber
+          ? `Order ${num} is on its way. Tracking: <strong style="color:#3f463f;">${escapeHtml(trackingNumber)}</strong>${
+              trackingUrl
+                ? ` — <a href="${escapeHtml(trackingUrl)}" style="color:#c56a45;">track your parcel</a>`
+                : ""
+            }.`
+          : `Order ${num} is on its way. We'll follow up if there's tracking to share.`,
       },
     };
     const { subject, heading, intro } = copy[kind];
