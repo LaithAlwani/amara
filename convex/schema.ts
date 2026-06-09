@@ -157,6 +157,9 @@ export default defineSchema({
     cartId: v.optional(v.id("carts")), // source cart, cleared when paid
     discountCode: v.optional(v.string()),
     discountCents: v.optional(v.number()),
+    pointsRedeemed: v.optional(v.number()), // loyalty points spent (1 pt = 1¢)
+    giftCardCode: v.optional(v.string()),
+    giftCardRedeemedCents: v.optional(v.number()),
     subscriptionId: v.optional(v.id("subscriptions")), // set for renewal orders
     stripeInvoiceId: v.optional(v.string()), // subscription cycle idempotency
     stripeCheckoutSessionId: v.optional(v.string()),
@@ -228,6 +231,19 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_user_and_product", ["userId", "productId"]),
 
+  // Loyalty: 1 point earned per $1 of subtotal; 100 points = $1 at checkout.
+  rewardAccounts: defineTable({
+    userId: v.id("users"),
+    points: v.number(),
+  }).index("by_user", ["userId"]),
+
+  rewardTransactions: defineTable({
+    userId: v.id("users"),
+    delta: v.number(), // + earned, - redeemed
+    reason: v.union(v.literal("earned"), v.literal("redeemed")),
+    orderId: v.optional(v.id("orders")),
+  }).index("by_user", ["userId"]),
+
   // --- Fulfillment --------------------------------------------------------
   shipments: defineTable({
     orderId: v.id("orders"),
@@ -277,6 +293,19 @@ export default defineSchema({
     expiresAt: v.optional(v.number()),
   }).index("by_code", ["code"]),
 
+  giftCards: defineTable({
+    code: v.string(), // e.g. AMARA-GIFT-XXXXXX
+    initialCents: v.number(),
+    balanceCents: v.number(),
+    active: v.boolean(),
+    purchaserEmail: v.optional(v.string()),
+    recipientEmail: v.optional(v.string()),
+    message: v.optional(v.string()),
+    stripeSessionId: v.optional(v.string()), // idempotent creation guard
+  })
+    .index("by_code", ["code"])
+    .index("by_stripeSessionId", ["stripeSessionId"]),
+
   // One row per paid redemption — enforces "once per customer" (matched by
   // account id and/or guest email).
   discountRedemptions: defineTable({
@@ -287,6 +316,23 @@ export default defineSchema({
   })
     .index("by_code_and_user", ["code", "userId"])
     .index("by_code_and_email", ["code", "email"]),
+
+  // --- CMS ----------------------------------------------------------------
+  // Singleton (key "home") of admin-editable homepage copy + brand accent.
+  siteContent: defineTable({
+    key: v.literal("home"),
+    heroEyebrow: v.string(),
+    heroTitle: v.string(),
+    heroSubtitle: v.string(),
+    heroCtaLabel: v.string(),
+    heroCtaHref: v.string(),
+    ctaTitle: v.string(),
+    ctaBody: v.string(),
+    accentHex: v.string(), // overrides the --clay brand accent
+    primaryHex: v.optional(v.string()), // overrides the --primary forest green
+    backgroundHex: v.optional(v.string()), // overrides --background
+    foregroundHex: v.optional(v.string()), // overrides --foreground (text)
+  }).index("by_key", ["key"]),
 
   // --- Config & ops -------------------------------------------------------
   settings: defineTable({

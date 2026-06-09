@@ -7,7 +7,91 @@ import {
 } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import { Id } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
+import { awardPoints, redeemPoints, pointsEarnedFor } from "./rewards";
+import { redeemGiftCardBalance } from "./giftCards";
+
+// Apply all the side effects of an order becoming paid: mark paid, decrement
+// inventory, record discount/gift-card/points usage, clear the cart, and email.
+// Shared by the Stripe webhook path and the $0 (fully gift-card-covered) path.
+async function applyPaidEffects(
+  ctx: MutationCtx,
+  order: Doc<"orders">,
+  paymentIntentId?: string,
+): Promise<void> {
+  await ctx.db.patch("orders", order._id, {
+    status: "paid",
+    paidAt: Date.now(),
+    stripePaymentIntentId: paymentIntentId,
+  });
+
+  const items = await ctx.db
+    .query("orderItems")
+    .withIndex("by_order", (q) => q.eq("orderId", order._id))
+    .take(200);
+  for (const item of items) {
+    const variant = await ctx.db.get("productVariants", item.variantId);
+    if (variant) {
+      await ctx.db.patch("productVariants", variant._id, {
+        inventoryQty: Math.max(0, variant.inventoryQty - item.quantity),
+      });
+    }
+  }
+
+  if (order.discountCode) {
+    const code = await ctx.db
+      .query("discountCodes")
+      .withIndex("by_code", (q) => q.eq("code", order.discountCode!))
+      .unique();
+    if (code) {
+      await ctx.db.patch("discountCodes", code._id, {
+        usedCount: code.usedCount + 1,
+      });
+    }
+    await ctx.db.insert("discountRedemptions", {
+      code: order.discountCode,
+      userId: order.userId,
+      email: order.email,
+      orderId: order._id,
+    });
+  }
+
+  if (order.giftCardCode && (order.giftCardRedeemedCents ?? 0) > 0) {
+    await redeemGiftCardBalance(
+      ctx,
+      order.giftCardCode,
+      order.giftCardRedeemedCents!,
+    );
+  }
+
+  if (order.userId) {
+    if (order.pointsRedeemed && order.pointsRedeemed > 0) {
+      await redeemPoints(ctx, order.userId, order.pointsRedeemed, order._id);
+    }
+    await awardPoints(
+      ctx,
+      order.userId,
+      pointsEarnedFor(order.subtotalCents),
+      order._id,
+    );
+  }
+
+  if (order.cartId) {
+    const cartItems = await ctx.db
+      .query("cartItems")
+      .withIndex("by_cart", (q) => q.eq("cartId", order.cartId!))
+      .take(200);
+    for (const ci of cartItems) await ctx.db.delete("cartItems", ci._id);
+    const cart = await ctx.db.get("carts", order.cartId);
+    if (cart && cart.status === "open") {
+      await ctx.db.patch("carts", cart._id, { status: "converted" });
+    }
+  }
+
+  await ctx.scheduler.runAfter(0, internal.emails.sendOrderConfirmation, {
+    orderId: order._id,
+  });
+}
 
 // --- Stripe payment plumbing (internal; called from convex/payments.ts) ----
 
@@ -28,6 +112,8 @@ export const getOrderForStripe = internalQuery({
       shippingCents: order.shippingCents,
       discountCents: order.discountCents ?? 0,
       discountCode: order.discountCode ?? null,
+      pointsRedeemed: order.pointsRedeemed ?? 0,
+      giftCardRedeemedCents: order.giftCardRedeemedCents ?? 0,
       taxCents: order.taxCents,
       items: items.map((i) => ({
         name: i.nameSnapshot,
@@ -92,65 +178,21 @@ export const finalizeOrderPaid = internalMutation({
     if (!order) return { ok: true, missing: true };
     if (order.status !== "pending") return { ok: true, already: order.status };
 
-    await ctx.db.patch("orders", order._id, {
-      status: "paid",
-      paidAt: Date.now(),
-      stripePaymentIntentId: paymentIntentId,
-    });
+    await applyPaidEffects(ctx, order, paymentIntentId);
+    return { ok: true };
+  },
+});
 
-    // Decrement inventory from the immutable order snapshots.
-    const items = await ctx.db
-      .query("orderItems")
-      .withIndex("by_order", (q) => q.eq("orderId", order._id))
-      .take(200);
-    for (const item of items) {
-      const variant = await ctx.db.get("productVariants", item.variantId);
-      if (variant) {
-        await ctx.db.patch("productVariants", variant._id, {
-          inventoryQty: Math.max(0, variant.inventoryQty - item.quantity),
-        });
-      }
-    }
-
-    // Count the discount redemption (only paid orders consume usage) and record
-    // it per-customer so the code can't be reused by the same account/email.
-    if (order.discountCode) {
-      const code = await ctx.db
-        .query("discountCodes")
-        .withIndex("by_code", (q) => q.eq("code", order.discountCode!))
-        .unique();
-      if (code) {
-        await ctx.db.patch("discountCodes", code._id, {
-          usedCount: code.usedCount + 1,
-        });
-      }
-      await ctx.db.insert("discountRedemptions", {
-        code: order.discountCode,
-        userId: order.userId,
-        email: order.email,
-        orderId: order._id,
-      });
-    }
-
-    // Clear the cart this order came from.
-    if (order.cartId) {
-      const cartItems = await ctx.db
-        .query("cartItems")
-        .withIndex("by_cart", (q) => q.eq("cartId", order.cartId!))
-        .take(200);
-      for (const ci of cartItems) await ctx.db.delete("cartItems", ci._id);
-      const cart = await ctx.db.get("carts", order.cartId);
-      if (cart && cart.status === "open") {
-        await ctx.db.patch("carts", cart._id, { status: "converted" });
-      }
-    }
-
-    // Send the order-confirmation email out of band (Node runtime, so it can't
-    // run inside this transaction). Scheduling is part of the transaction, so a
-    // rollback would also drop the scheduled send — no orphan emails.
-    await ctx.scheduler.runAfter(0, internal.emails.sendOrderConfirmation, {
-      orderId: order._id,
-    });
+// Finalize an order whose full amount was covered (gift card / points / code) so
+// nothing is charged — there is no Stripe session for it. Called from the
+// checkout action when the amount due is $0.
+export const finalizeFreeOrder = internalMutation({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, { orderId }) => {
+    const order = await ctx.db.get("orders", orderId);
+    if (!order) return { ok: true, missing: true };
+    if (order.status !== "pending") return { ok: true, already: order.status };
+    await applyPaidEffects(ctx, order);
     return { ok: true };
   },
 });
@@ -292,6 +334,8 @@ export const getOrderForEmail = internalQuery({
       shippingCents: order.shippingCents,
       discountCode: order.discountCode ?? null,
       discountCents: order.discountCents ?? 0,
+      pointsRedeemed: order.pointsRedeemed ?? 0,
+      giftCardRedeemedCents: order.giftCardRedeemedCents ?? 0,
       taxCents: order.taxCents,
       totalCents: order.totalCents,
       shippingAddress: order.shippingAddress ?? null,

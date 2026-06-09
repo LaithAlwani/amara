@@ -14,6 +14,8 @@ const ADMIN_NAV = [
   { href: "/admin/products", label: "Products" },
   { href: "/admin/collections", label: "Collections" },
   { href: "/admin/discounts", label: "Discounts" },
+  { href: "/admin/gift-cards", label: "Gift cards" },
+  { href: "/admin/content", label: "Content" },
 ];
 
 // Client-side admin gate. The real security boundary is `requireAdmin` inside
@@ -51,7 +53,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           View store →
         </Link>
       </div>
-      <nav className="mt-4 flex gap-1">
+      <nav className="-mx-4 mt-4 flex gap-1 overflow-x-auto px-4 scrollbar-none sm:mx-0 sm:px-0">
         {ADMIN_NAV.map((item) => {
           const active =
             item.href === "/admin"
@@ -62,7 +64,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               key={item.href}
               href={item.href}
               className={cn(
-                "rounded-md px-3 py-1.5 text-sm transition-colors",
+                "shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 text-sm transition-colors",
                 active
                   ? "bg-accent text-foreground"
                   : "text-muted-foreground hover:text-foreground",

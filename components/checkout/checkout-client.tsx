@@ -67,6 +67,9 @@ export function CheckoutClient() {
   const [error, setError] = useState<string | null>(null);
   const [codeInput, setCodeInput] = useState("");
   const [appliedCode, setAppliedCode] = useState("");
+  const [usePoints, setUsePoints] = useState(false);
+  const [giftInput, setGiftInput] = useState("");
+  const [appliedGift, setAppliedGift] = useState("");
 
   const createDraftOrder = useMutation(api.checkout.createDraftOrder);
   const startCheckout = useAction(api.payments.createCheckoutSession);
@@ -89,7 +92,14 @@ export function CheckoutClient() {
   const quote = useQuery(
     api.checkout.quoteCart,
     argsBase
-      ? { ...argsBase, fulfillmentMethod: method, discountCode, email: quoteEmail }
+      ? {
+          ...argsBase,
+          fulfillmentMethod: method,
+          discountCode,
+          email: quoteEmail,
+          pointsToRedeem: usePoints ? 1_000_000 : undefined,
+          giftCardCode: appliedGift || undefined,
+        }
       : "skip",
   );
   const subQuote = useQuery(
@@ -168,6 +178,8 @@ export function CheckoutClient() {
         fulfillmentMethod: method,
         shippingAddress: method === "ship" ? buildAddress() : undefined,
         discountCode: quote?.appliedCode ?? undefined,
+        pointsToRedeem: usePoints ? 1_000_000 : undefined,
+        giftCardCode: quote?.giftCardCode ?? undefined,
       });
       const { url } = await startCheckout({
         orderId,
@@ -463,6 +475,70 @@ export function CheckoutClient() {
               </div>
             )}
 
+            {/* Loyalty points (one-time, signed-in, has balance) */}
+            {!isSubscribe && quote && quote.pointsBalance > 0 ? (
+              <label className="flex items-center justify-between gap-3 border-t border-border pt-4 text-sm">
+                <span>
+                  Use {quote.pointsBalance.toLocaleString()} points
+                  <span className="text-muted-foreground">
+                    {" "}
+                    (−{formatPrice(quote.pointsBalance)} max)
+                  </span>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={usePoints}
+                  onChange={(e) => setUsePoints(e.target.checked)}
+                  className="size-4 accent-clay"
+                />
+              </label>
+            ) : null}
+
+            {/* Gift card (one-time) */}
+            {!isSubscribe ? (
+              <div className="border-t border-border pt-4">
+                {quote?.giftCardCode ? (
+                  <div className="flex items-center justify-between rounded-lg bg-clay/10 px-3 py-2 text-sm">
+                    <span className="font-medium text-clay">
+                      Gift card applied
+                    </span>
+                    <button
+                      type="button"
+                      aria-label="Remove gift card"
+                      onClick={() => {
+                        setAppliedGift("");
+                        setGiftInput("");
+                      }}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Input
+                      value={giftInput}
+                      onChange={(e) => setGiftInput(e.target.value)}
+                      placeholder="Gift card code"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={!giftInput.trim()}
+                      onClick={() => setAppliedGift(giftInput.trim())}
+                    >
+                      Apply
+                    </Button>
+                  </div>
+                )}
+                {quote?.giftCardError ? (
+                  <p className="mt-1.5 text-xs text-destructive">
+                    {quote.giftCardError}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
             <div className="space-y-1.5 border-t border-border pt-4 text-sm">
               <Row label="Subtotal" value={formatPrice(summary.subtotalCents)} />
               {!isSubscribe && quote && quote.discountCents > 0 ? (
@@ -472,6 +548,12 @@ export function CheckoutClient() {
                     {quote.appliedCode ? ` (${quote.appliedCode})` : ""}
                   </span>
                   <span>-{formatPrice(quote.discountCents)}</span>
+                </div>
+              ) : null}
+              {!isSubscribe && quote && quote.pointsRedeemed > 0 ? (
+                <div className="flex justify-between text-clay">
+                  <span>Points</span>
+                  <span>-{formatPrice(quote.pointsRedeemed)}</span>
                 </div>
               ) : null}
               <Row
@@ -487,6 +569,18 @@ export function CheckoutClient() {
                 <span>{isSubscribe ? "Per delivery" : "Total"}</span>
                 <span>{formatPrice(summary.totalCents)}</span>
               </div>
+              {!isSubscribe && quote && quote.giftCardRedeemedCents > 0 ? (
+                <>
+                  <div className="flex justify-between text-clay">
+                    <span>Gift card</span>
+                    <span>-{formatPrice(quote.giftCardRedeemedCents)}</span>
+                  </div>
+                  <div className="flex justify-between font-medium">
+                    <span>Amount due</span>
+                    <span>{formatPrice(quote.amountDueCents)}</span>
+                  </div>
+                </>
+              ) : null}
             </div>
 
             {isSubscribe && subQuote ? (
@@ -540,14 +634,18 @@ export function CheckoutClient() {
               >
                 {placing ? (
                   <SpinnerGap className="size-4 animate-spin" />
+                ) : quote && !quote.empty && quote.amountDueCents === 0 ? (
+                  "Place order"
                 ) : (
                   "Continue to payment"
                 )}
               </Button>
             )}
-            <p className="text-center text-xs text-muted-foreground">
-              You will be redirected to our secure Stripe checkout.
-            </p>
+            {!isSubscribe && quote && quote.amountDueCents === 0 ? null : (
+              <p className="text-center text-xs text-muted-foreground">
+                You will be redirected to our secure Stripe checkout.
+              </p>
+            )}
           </>
         )}
       </aside>

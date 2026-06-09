@@ -1020,3 +1020,24 @@ Every decision should answer:
 1. KPIs show revenue/orders/AOV/units for the selected window; switch **30d / 90d / All**.
 2. **Top products** ranks by revenue; **Low stock** lists variants ≤5; **Recent orders** links through to `/admin/orders/[id]`.
 3. Place/pay a test order → the numbers update live (Convex reactivity).
+
+## Phase 17 — CMS + Loyalty + Gift cards (batched) ✅ (2026-06-08)
+Built and deployed together; `tsc` + `eslint` clean, `next build` green.
+
+### 17a — CMS / theme
+- `siteContent` singleton (`convex/content.ts`: `getSiteContent` public with built-in DEFAULTS so the site renders before any save; `updateSiteContent` admin). Homepage hero + closing CTA now read it (`fetchQuery`); **brand accent (`--clay`)** is injected as an inline `<style>` in the (now async) root layout before paint. Admin editor at `/admin/content` (hero, CTA, colour picker) + **Content** nav item.
+
+### 17b — Loyalty / rewards
+- Schema `rewardAccounts` + `rewardTransactions`; `orders.pointsRedeemed`. `convex/rewards.ts`: 1 pt per $1 subtotal, redeemed at **100 pts = $1**. **Earn** wired into `finalizeOrderPaid` and subscription `createCycleOrder`; **redeem** at checkout (`quoteCart`/`createDraftOrder` take `pointsToRedeem`; folded into the Stripe coupon with the code discount; deducted in `finalizeOrderPaid`). Account page `/account/rewards` (balance + history) + **Rewards** account-menu item. Points line on the checkout summary, success page, and email.
+
+### 17c — Gift cards
+- Schema `giftCards` (code, balance, stripeSessionId) + `orders.giftCard*`. Buy flow: `/gift-cards` page → `payments.createGiftCardCheckout` (one-off Stripe payment, `metadata.kind="giftcard"`) → webhook branch → `giftCards.createFromPurchase` mints a unique code + emails the recipient (`emails.sendGiftCardEmail`). **Redeem** at checkout (`giftCardCode` on quote/draft): applies against the order **total** (post-tax, leaving a ≥$0.50 charge), folded into the same Stripe coupon, balance deducted in `finalizeOrderPaid`. Gift-card + "Amount due/Paid" lines on the summary, success page, and email. Admin list `/admin/gift-cards` + **Gift cards** nav; storefront link in the footer.
+
+**Important — checkout reductions now stack into ONE Stripe coupon**: `amount_off = discountCode + points + giftCard`. Tax is on the discounted subtotal; the gift card comes off the post-tax total. Subscriptions are excluded from all three redemptions.
+
+**Deferred:** editable homepage *sections/images* beyond hero+CTA and full theme tokens (only the accent is live); partial/blocked points redemption UI (it's all-or-max); gift-card balance-check page; admin-issued gift cards; gift cards as a catalog product.
+
+**How to test Phase 17** (dev, `stripe listen` running):
+- **CMS:** `/admin/content` → change hero title + accent colour → Save → homepage updates (accent recolours site-wide).
+- **Loyalty:** pay an order → `/account/rewards` shows earned points; on a later order tick **Use points** → discount applies, total drops, balance decremented after payment.
+- **Gift cards:** `/gift-cards` → buy $25 → pay → recipient gets the emailed code; at checkout enter the code → it covers the total (leaving ≥$0.50), **Amount due** shown; after payment the card balance drops (`/admin/gift-cards`).

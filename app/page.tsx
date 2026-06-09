@@ -7,12 +7,13 @@ import { Button } from "@/components/ui/button";
 import { ProductCard } from "@/components/shop/product-card";
 
 export default async function Home() {
-  const [bestSellers, collections] = await Promise.all([
+  const [bestSellers, collections, content] = await Promise.all([
     fetchQuery(api.collections.getCollectionBySlug, {
       slug: "best-sellers",
       limit: 4,
     }),
     fetchQuery(api.collections.listCollections, {}),
+    fetchQuery(api.content.getSiteContent, {}),
   ]);
 
   return (
@@ -20,17 +21,16 @@ export default async function Home() {
       {/* Hero (split) */}
       <section className="mx-auto grid max-w-7xl items-center gap-10 px-4 pt-16 pb-20 sm:px-6 lg:grid-cols-2 lg:gap-16 lg:pt-24">
         <div className="max-w-xl">
-          <p className="eyebrow">Plant-led skincare</p>
+          <p className="eyebrow">{content.heroEyebrow}</p>
           <h1 className="mt-4 font-heading text-4xl font-semibold leading-[1.05] tracking-tight md:text-6xl">
-            Quiet rituals for considered skin
+            {content.heroTitle}
           </h1>
           <p className="mt-5 max-w-md text-base leading-relaxed text-muted-foreground">
-            Small-batch botanicals made in Ottawa. Shipped flat-rate across
-            Canada, or ready for local pickup the same week.
+            {content.heroSubtitle}
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Button size="lg" asChild>
-              <Link href="/shop">Shop the range</Link>
+              <Link href={content.heroCtaHref}>{content.heroCtaLabel}</Link>
             </Button>
             <Button size="lg" variant="outline" asChild>
               <Link href="/collections">Browse collections</Link>
@@ -140,14 +140,13 @@ export default async function Home() {
       <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
         <div className="rounded-3xl bg-primary px-8 py-16 text-center text-primary-foreground sm:px-16">
           <h2 className="mx-auto max-w-2xl font-heading text-3xl font-semibold tracking-tight md:text-4xl">
-            Build a routine that feels like yours
+            {content.ctaTitle}
           </h2>
           <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-primary-foreground/80">
-            Start with a best seller, or explore the full range of small-batch
-            botanicals.
+            {content.ctaBody}
           </p>
           <Button size="lg" variant="secondary" className="mt-8" asChild>
-            <Link href="/shop">Shop the range</Link>
+            <Link href={content.heroCtaHref}>{content.heroCtaLabel}</Link>
           </Button>
         </div>
       </section>

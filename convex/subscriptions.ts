@@ -9,6 +9,7 @@ import { v } from "convex/values";
 import { Doc, Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { findOpenCart } from "./cart";
+import { awardPoints, pointsEarnedFor } from "./rewards";
 
 const addressArg = v.object({
   name: v.string(),
@@ -455,6 +456,8 @@ export const createCycleOrder = internalMutation({
         });
       }
     }
+
+    await awardPoints(ctx, sub.userId, pointsEarnedFor(subtotalCents), orderId);
 
     await ctx.scheduler.runAfter(0, internal.emails.sendOrderConfirmation, {
       orderId,

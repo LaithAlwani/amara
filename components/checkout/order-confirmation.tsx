@@ -91,6 +91,12 @@ export function OrderConfirmation({ orderId }: { orderId: string }) {
               <span>-{formatPrice(order.discountCents)}</span>
             </div>
           ) : null}
+          {order.pointsRedeemed > 0 ? (
+            <div className="flex justify-between text-clay">
+              <span>Points</span>
+              <span>-{formatPrice(order.pointsRedeemed)}</span>
+            </div>
+          ) : null}
           <Line
             label="Shipping"
             value={
@@ -104,6 +110,22 @@ export function OrderConfirmation({ orderId }: { orderId: string }) {
             <span>Total</span>
             <span>{formatPrice(order.totalCents)}</span>
           </div>
+          {order.giftCardRedeemedCents > 0 ? (
+            <>
+              <div className="flex justify-between text-clay">
+                <span>Gift card</span>
+                <span>-{formatPrice(order.giftCardRedeemedCents)}</span>
+              </div>
+              <div className="flex justify-between font-medium">
+                <span>Paid</span>
+                <span>
+                  {formatPrice(
+                    order.totalCents - order.giftCardRedeemedCents,
+                  )}
+                </span>
+              </div>
+            </>
+          ) : null}
         </div>
 
         <div className="mt-6 border-t border-border pt-4 text-sm">

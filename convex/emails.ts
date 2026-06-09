@@ -23,6 +23,8 @@ type EmailOrder = {
   shippingCents: number;
   discountCode: string | null;
   discountCents: number;
+  pointsRedeemed: number;
+  giftCardRedeemedCents: number;
   taxCents: number;
   totalCents: number;
   shippingAddress: {
@@ -142,6 +144,11 @@ function renderHtml(
                 )
               : ""
           }
+          ${
+            order.pointsRedeemed > 0
+              ? summaryRow("Points", `-${money(order.pointsRedeemed)}`)
+              : ""
+          }
           ${summaryRow(
             "Shipping",
             order.shippingCents === 0 ? "Free" : money(order.shippingCents),
@@ -155,6 +162,13 @@ function renderHtml(
               ${money(order.totalCents)}
             </td>
           </tr>
+          ${
+            order.giftCardRedeemedCents > 0
+              ? `${summaryRow("Gift card", `-${money(order.giftCardRedeemedCents)}`)}
+                 <tr><td style="padding:6px 0 0;font-weight:600;color:#1f2a22;">Paid</td>
+                 <td style="padding:6px 0 0;text-align:right;font-weight:600;color:#1f2a22;">${money(order.totalCents - order.giftCardRedeemedCents)}</td></tr>`
+              : ""
+          }
         </table>
         <div style="margin-top:24px;border-top:1px solid #e3e8e2;padding-top:16px;">
           ${fulfillment}
@@ -240,6 +254,62 @@ export const sendOrderConfirmation = internalAction({
 
 // Fulfillment-status notification to the customer (ready for pickup / picked up
 // / shipped). Scheduled from the admin order mutations in convex/admin.ts.
+// Gift-card delivery email — sent to the recipient (falls back to purchaser).
+export const sendGiftCardEmail = internalAction({
+  args: { giftCardId: v.id("giftCards") },
+  handler: async (ctx, { giftCardId }) => {
+    const card = await ctx.runQuery(internal.giftCards.getForEmail, {
+      giftCardId,
+    });
+    if (!card) return null;
+    const to = card.recipientEmail || card.purchaserEmail;
+    if (!to) return null;
+
+    const transport = buildTransport();
+    if (!transport) {
+      console.warn(
+        `[emails] SMTP not configured; would send gift card ${card.code} to ${to}`,
+      );
+      return null;
+    }
+
+    const from = process.env.MAIL_FROM ?? "Amara <orders@amara.test>";
+    const html = `
+    <div style="background:#f4f6f3;padding:32px 0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+      <div style="max-width:480px;margin:0 auto;background:#ffffff;border:1px solid #e3e8e2;border-radius:16px;overflow:hidden;">
+        <div style="background:#1f2a22;padding:24px 32px;">
+          <span style="color:#ffffff;font-size:22px;font-weight:600;">Amara</span>
+        </div>
+        <div style="padding:32px;text-align:center;">
+          <h1 style="margin:0 0 8px;font-size:22px;color:#1f2a22;">You've received a gift card</h1>
+          <p style="margin:0 0 20px;color:#8a938a;font-size:14px;">
+            ${money(card.initialCents)} to spend on clean, plant-led beauty.
+          </p>
+          ${
+            card.message
+              ? `<p style="margin:0 0 20px;color:#3f463f;font-size:14px;font-style:italic;">"${escapeHtml(card.message)}"</p>`
+              : ""
+          }
+          <div style="margin:0 auto;display:inline-block;border:1px dashed #c56a45;border-radius:12px;padding:14px 22px;">
+            <span style="font-size:20px;font-weight:600;letter-spacing:0.05em;color:#1f2a22;">${escapeHtml(card.code)}</span>
+          </div>
+          <p style="margin:20px 0 0;color:#8a938a;font-size:13px;">
+            Enter this code at checkout to redeem your balance.
+          </p>
+        </div>
+      </div>
+    </div>`;
+
+    await transport.sendMail({
+      from,
+      to,
+      subject: `You've received a ${money(card.initialCents)} Amara gift card`,
+      html,
+    });
+    return null;
+  },
+});
+
 export const sendFulfillmentEmail = internalAction({
   args: {
     orderId: v.id("orders"),

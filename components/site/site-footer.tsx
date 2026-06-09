@@ -7,6 +7,7 @@ const COLUMNS = [
       { href: "/shop", label: "All products" },
       { href: "/collections", label: "Collections" },
       { href: "/collections/best-sellers", label: "Best sellers" },
+      { href: "/gift-cards", label: "Gift cards" },
     ],
   },
   {

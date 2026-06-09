@@ -78,6 +78,19 @@ export const createCheckoutSession = action({
     if (!data) throw new Error("Order not found.");
     if (data.status !== "pending") throw new Error("Order is not payable.");
 
+    // If the whole order is covered (gift card / points / code), there is
+    // nothing to charge — finalize it directly and skip Stripe.
+    const lineTotal =
+      data.items.reduce((s, i) => s + i.unitPriceCents * i.quantity, 0) +
+      data.shippingCents +
+      data.taxCents;
+    const reductionTotal =
+      data.discountCents + data.pointsRedeemed + data.giftCardRedeemedCents;
+    if (lineTotal - reductionTotal <= 0) {
+      await ctx.runMutation(internal.orders.finalizeFreeOrder, { orderId });
+      return { url: `${origin}/checkout/success?orderId=${orderId}` };
+    }
+
     const stripe = stripeClient();
     const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] =
       data.items.map((i) => ({
@@ -116,12 +129,19 @@ export const createCheckoutSession = action({
     let discounts:
       | Stripe.Checkout.SessionCreateParams.Discount[]
       | undefined;
-    if (data.discountCents > 0) {
+    const reductionCents =
+      data.discountCents + data.pointsRedeemed + data.giftCardRedeemedCents;
+    if (reductionCents > 0) {
+      const labels = [
+        data.discountCode,
+        data.pointsRedeemed > 0 ? "Points" : null,
+        data.giftCardRedeemedCents > 0 ? "Gift card" : null,
+      ].filter(Boolean);
       const coupon = await stripe.coupons.create({
-        amount_off: data.discountCents,
+        amount_off: reductionCents,
         currency: "cad",
         duration: "once",
-        name: data.discountCode ?? "Discount",
+        name: labels.length ? labels.join(" + ") : "Discount",
       });
       discounts = [{ coupon: coupon.id }];
     }
@@ -311,6 +331,50 @@ export const cancelSubscription = action({
   },
 });
 
+// Buy a gift card: a one-off payment whose `invoice`-free session, once paid,
+// mints a gift card (in the webhook) and emails the recipient the code.
+export const createGiftCardCheckout = action({
+  args: {
+    amountCents: v.number(),
+    recipientEmail: v.string(),
+    purchaserEmail: v.string(),
+    message: v.optional(v.string()),
+    origin: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const amount = Math.round(args.amountCents);
+    if (amount < 1000 || amount > 50000) {
+      throw new Error("Gift cards are between $10 and $500.");
+    }
+    const stripe = stripeClient();
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: "cad",
+            unit_amount: amount,
+            product_data: { name: "Amara gift card" },
+          },
+        },
+      ],
+      customer_email: args.purchaserEmail,
+      metadata: {
+        kind: "giftcard",
+        amountCents: String(amount),
+        recipientEmail: args.recipientEmail,
+        purchaserEmail: args.purchaserEmail,
+        message: args.message ?? "",
+      },
+      success_url: `${args.origin}/gift-cards/success`,
+      cancel_url: `${args.origin}/gift-cards`,
+    });
+    if (!session.url) throw new Error("Stripe did not return a checkout URL.");
+    return { url: session.url };
+  },
+});
+
 // Verify and dispatch a Stripe webhook event. Called by convex/http.ts.
 export const handleStripeWebhook = internalAction({
   args: { payload: v.string(), signature: v.string() },
@@ -337,6 +401,17 @@ export const handleStripeWebhook = internalAction({
               ? s.subscription
               : s.subscription.id;
           await ensureActivated(ctx, stripe, subId);
+        } else if (
+          s.metadata?.kind === "giftcard" &&
+          s.payment_status === "paid"
+        ) {
+          await ctx.runMutation(internal.giftCards.createFromPurchase, {
+            stripeSessionId: s.id,
+            amountCents: Number(s.metadata.amountCents ?? "0"),
+            purchaserEmail: s.metadata.purchaserEmail || undefined,
+            recipientEmail: s.metadata.recipientEmail || undefined,
+            message: s.metadata.message || undefined,
+          });
         } else if (s.payment_status === "paid") {
           await ctx.runMutation(internal.orders.finalizeOrderPaid, {
             sessionId: s.id,

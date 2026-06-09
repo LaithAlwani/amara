@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
+import { fetchQuery } from "convex/nextjs";
+import { api } from "@/convex/_generated/api";
 import "./globals.css";
 import { ConvexClientProvider } from "@/components/providers/convex-client-provider";
 import { CartProvider } from "@/components/providers/cart-provider";
@@ -29,11 +31,16 @@ export const metadata: Metadata = {
     "Clean, plant-led beauty made in small batches. Shipped across Canada or ready for pickup in Ottawa.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const content = await fetchQuery(api.content.getSiteContent, {});
+  // Runtime brand colours — override the editable tokens before paint.
+  const c = content;
+  const accentStyle = `:root{--clay:${c.accentHex};--color-clay:${c.accentHex};--primary:${c.primaryHex};--color-primary:${c.primaryHex};--background:${c.backgroundHex};--color-background:${c.backgroundHex};--foreground:${c.foregroundHex};--color-foreground:${c.foregroundHex};}`;
+
   return (
     <ClerkProvider>
       <html
@@ -41,6 +48,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       >
         <body className="flex min-h-full flex-col">
+          <style dangerouslySetInnerHTML={{ __html: accentStyle }} />
           <ConvexClientProvider>
             <CartProvider>
               <ConfirmProvider>

@@ -4,6 +4,8 @@ import { Doc, Id } from "./_generated/dataModel";
 import { findOpenCart } from "./cart";
 import { primaryImage } from "./catalog";
 import { evaluateDiscount } from "./discounts";
+import { getPointsBalance } from "./rewards";
+import { evaluateGiftCard } from "./giftCards";
 
 const fulfillmentValidator = v.union(v.literal("ship"), v.literal("pickup"));
 
@@ -85,8 +87,20 @@ export const quoteCart = query({
     fulfillmentMethod: fulfillmentValidator,
     discountCode: v.optional(v.string()),
     email: v.optional(v.string()),
+    pointsToRedeem: v.optional(v.number()),
+    giftCardCode: v.optional(v.string()),
   },
-  handler: async (ctx, { anonId, fulfillmentMethod, discountCode, email }) => {
+  handler: async (
+    ctx,
+    {
+      anonId,
+      fulfillmentMethod,
+      discountCode,
+      email,
+      pointsToRedeem,
+      giftCardCode,
+    },
+  ) => {
     const settings = await getSettings(ctx);
     const pickup = await getActivePickup(ctx);
     const pickupLocation = pickup
@@ -112,6 +126,12 @@ export const quoteCart = query({
         discountCents: 0,
         appliedCode: null as string | null,
         discountError: null as string | null,
+        pointsBalance: 0,
+        pointsRedeemed: 0,
+        giftCardCode: null as string | null,
+        giftCardRedeemedCents: 0,
+        giftCardError: null as string | null,
+        amountDueCents: 0,
         taxCents: 0,
         totalCents: 0,
         issues: [] as { name: string; reason: string }[],
@@ -165,19 +185,43 @@ export const quoteCart = query({
       userId,
       email: custEmail,
     });
+    const codeDiscount = discount.discountCents;
+
+    // Loyalty: redeem points (1 pt = 1¢), capped by balance and the remaining
+    // subtotal after any code discount.
+    const balance = userId ? await getPointsBalance(ctx, userId) : 0;
+    const pointsRedeemed = Math.min(
+      Math.max(0, Math.floor(pointsToRedeem ?? 0)),
+      balance,
+      Math.max(0, subtotalCents - codeDiscount),
+    );
+
     const totals = computeTotals(
       subtotalCents,
       fulfillmentMethod,
       settings,
-      discount.discountCents,
+      codeDiscount + pointsRedeemed,
     );
+
+    // Gift card applies to the order total (post-tax), leaving a small charge.
+    const gift = await evaluateGiftCard(ctx, giftCardCode, totals.totalCents);
+
     return {
       empty: items.length === 0,
       items,
       subtotalCents,
-      ...totals,
+      shippingCents: totals.shippingCents,
+      taxCents: totals.taxCents,
+      totalCents: totals.totalCents,
+      discountCents: codeDiscount,
       appliedCode: discount.code?.code ?? null,
       discountError: discount.error,
+      pointsBalance: balance,
+      pointsRedeemed,
+      giftCardCode: gift.card?.code ?? null,
+      giftCardRedeemedCents: gift.redeemCents,
+      giftCardError: gift.error,
+      amountDueCents: totals.totalCents - gift.redeemCents,
       issues,
       pickupLocation,
     };
@@ -212,6 +256,8 @@ export const createDraftOrder = mutation({
     shippingAddress: v.optional(addressArg),
     pickupLocationId: v.optional(v.id("pickupLocations")),
     discountCode: v.optional(v.string()),
+    pointsToRedeem: v.optional(v.number()),
+    giftCardCode: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const email = args.email.trim().toLowerCase();
@@ -258,13 +304,25 @@ export const createDraftOrder = mutation({
     });
     if (discount.error) throw new Error(discount.error);
 
+    // Loyalty redemption (1 pt = 1¢), capped by balance and remaining subtotal.
+    const codeDiscount = discount.discountCents;
+    const balance = userId ? await getPointsBalance(ctx, userId) : 0;
+    const pointsRedeemed = Math.min(
+      Math.max(0, Math.floor(args.pointsToRedeem ?? 0)),
+      balance,
+      Math.max(0, subtotalCents - codeDiscount),
+    );
+
     const settings = await getSettings(ctx);
     const { shippingCents, taxCents, totalCents } = computeTotals(
       subtotalCents,
       args.fulfillmentMethod,
       settings,
-      discount.discountCents,
+      codeDiscount + pointsRedeemed,
     );
+
+    // Gift card redemption against the order total.
+    const gift = await evaluateGiftCard(ctx, args.giftCardCode, totalCents);
 
     // Fulfillment-specific requirements.
     let pickupLocationId: Id<"pickupLocations"> | undefined;
@@ -302,7 +360,10 @@ export const createDraftOrder = mutation({
       pickupLocationId,
       cartId: cart._id,
       discountCode: discount.code?.code,
-      discountCents: discount.discountCents || undefined,
+      discountCents: codeDiscount || undefined,
+      pointsRedeemed: pointsRedeemed || undefined,
+      giftCardCode: gift.card?.code,
+      giftCardRedeemedCents: gift.redeemCents || undefined,
     });
 
     for (const { variant, product, item } of lines) {
@@ -361,6 +422,8 @@ export const getOrderConfirmation = query({
       shippingCents: order.shippingCents,
       discountCode: order.discountCode ?? null,
       discountCents: order.discountCents ?? 0,
+      pointsRedeemed: order.pointsRedeemed ?? 0,
+      giftCardRedeemedCents: order.giftCardRedeemedCents ?? 0,
       taxCents: order.taxCents,
       totalCents: order.totalCents,
       shippingAddress: order.shippingAddress ?? null,
