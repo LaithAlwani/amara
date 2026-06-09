@@ -35,8 +35,8 @@ export function AdminProducts() {
           No products yet. Create your first one.
         </p>
       ) : (
-        <div className="mt-6 overflow-hidden rounded-xl border border-border">
-          <table className="w-full text-sm">
+        <div className="mt-6 overflow-x-auto rounded-xl border border-border">
+          <table className="w-full min-w-160 text-sm">
             <thead className="bg-muted/50 text-left text-muted-foreground">
               <tr>
                 <th className="px-4 py-2.5 font-medium">Product</th>

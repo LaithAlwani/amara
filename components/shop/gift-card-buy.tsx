@@ -19,9 +19,10 @@ export function GiftCardBuy() {
   const [amount, setAmount] = useState(5000);
   const [custom, setCustom] = useState("");
   const [recipient, setRecipient] = useState("");
-  const [purchaser, setPurchaser] = useState(
-    user?.primaryEmailAddress?.emailAddress ?? "",
-  );
+  // Derive (not initial-state) so a signed-in email prefills once Clerk loads.
+  const [purchaserInput, setPurchaserInput] = useState<string | null>(null);
+  const purchaser =
+    purchaserInput ?? user?.primaryEmailAddress?.emailAddress ?? "";
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -106,7 +107,7 @@ export function GiftCardBuy() {
           id="purchaser"
           type="email"
           value={purchaser}
-          onChange={(e) => setPurchaser(e.target.value)}
+          onChange={(e) => setPurchaserInput(e.target.value)}
           placeholder="you@email.com"
         />
       </div>

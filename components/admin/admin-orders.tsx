@@ -67,8 +67,8 @@ export function AdminOrders() {
           No orders here yet.
         </p>
       ) : (
-        <div className="mt-4 overflow-hidden rounded-xl border border-border">
-          <table className="w-full text-sm">
+        <div className="mt-4 overflow-x-auto rounded-xl border border-border">
+          <table className="w-full min-w-160 text-sm">
             <thead className="bg-muted/50 text-left text-muted-foreground">
               <tr>
                 <th className="px-4 py-2.5 font-medium">Order</th>
@@ -100,7 +100,7 @@ export function AdminOrders() {
                     <td className="px-4 py-3 text-muted-foreground">
                       {dateFmt.format(o.createdAt)}
                     </td>
-                    <td className="hidden max-w-[14rem] truncate px-4 py-3 text-muted-foreground sm:table-cell">
+                    <td className="hidden max-w-56 truncate px-4 py-3 text-muted-foreground sm:table-cell">
                       {o.email}
                     </td>
                     <td className="px-4 py-3 capitalize text-muted-foreground">
