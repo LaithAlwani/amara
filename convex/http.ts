@@ -26,4 +26,39 @@ http.route({
   }),
 });
 
+// Shippo tracking webhook (track_updated). Shippo doesn't sign payloads, so we
+// gate on a shared token in the query string:
+//   https://<deployment>.convex.site/shippo/webhook?token=<SHIPPO_WEBHOOK_TOKEN>
+http.route({
+  path: "/shippo/webhook",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const expected = process.env.SHIPPO_WEBHOOK_TOKEN;
+    const token = new URL(request.url).searchParams.get("token");
+    if (expected && token !== expected) {
+      return new Response("forbidden", { status: 403 });
+    }
+    let body: {
+      data?: {
+        tracking_number?: string;
+        tracking_status?: { status?: string };
+      };
+    };
+    try {
+      body = await request.json();
+    } catch {
+      return new Response("bad request", { status: 400 });
+    }
+    const trackingNumber = body.data?.tracking_number;
+    const shippoStatus = body.data?.tracking_status?.status;
+    if (trackingNumber && shippoStatus) {
+      await ctx.runMutation(internal.shipments.applyTrackingUpdate, {
+        trackingNumber,
+        shippoStatus,
+      });
+    }
+    return new Response("ok", { status: 200 });
+  }),
+});
+
 export default http;

@@ -317,6 +317,7 @@ export const sendFulfillmentEmail = internalAction({
       v.literal("ready_for_pickup"),
       v.literal("picked_up"),
       v.literal("shipped"),
+      v.literal("delivered"),
     ),
     trackingNumber: v.optional(v.string()),
     trackingUrl: v.optional(v.string()),
@@ -360,6 +361,11 @@ export const sendFulfillmentEmail = internalAction({
                 : ""
             }.`
           : `Order ${num} is on its way. We'll follow up if there's tracking to share.`,
+      },
+      delivered: {
+        subject: `Your Amara order ${order.orderNumber} was delivered`,
+        heading: "Delivered",
+        intro: `Order ${num} has been delivered. We hope you love it — thank you for shopping with Amara.`,
       },
     };
     const { subject, heading, intro } = copy[kind];

@@ -268,6 +268,13 @@ export const listMyOrders = query({
     return await Promise.all(
       realOrders.map(async (order) => {
         const items = await loadOrderItems(ctx, order._id);
+        const shipment =
+          order.fulfillmentMethod === "ship"
+            ? await ctx.db
+                .query("shipments")
+                .withIndex("by_order", (q) => q.eq("orderId", order._id))
+                .first()
+            : null;
         return {
           _id: order._id,
           orderNumber: order.orderNumber,
@@ -279,6 +286,8 @@ export const listMyOrders = query({
           shippingCents: order.shippingCents,
           taxCents: order.taxCents,
           totalCents: order.totalCents,
+          trackingNumber: shipment?.trackingNumber ?? null,
+          trackingUrl: shipment?.trackingUrl ?? null,
           items: items.map((i) => ({
             nameSnapshot: i.nameSnapshot,
             variantTitleSnapshot: i.variantTitleSnapshot,

@@ -60,6 +60,7 @@ export function ShipmentManager({ orderId }: { orderId: Id<"orders"> }) {
 
       {shipment ? (
         <div className="mt-4 space-y-2 text-sm">
+          <Row label="Status" value={shipmentStatusLabel(shipment.status)} />
           <Row label="Carrier" value={`${shipment.carrier ?? "—"} · ${shipment.service ?? ""}`} />
           {shipment.costCents != null ? (
             <Row label="Label cost" value={formatPrice(shipment.costCents)} />
@@ -142,6 +143,21 @@ export function ShipmentManager({ orderId }: { orderId: Id<"orders"> }) {
       )}
     </div>
   );
+}
+
+function shipmentStatusLabel(status: string): string {
+  switch (status) {
+    case "label_purchased":
+      return "Label purchased";
+    case "in_transit":
+      return "In transit";
+    case "delivered":
+      return "Delivered";
+    case "error":
+      return "Tracking error";
+    default:
+      return status;
+  }
 }
 
 function Row({ label, value }: { label: string; value: string }) {

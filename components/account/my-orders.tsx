@@ -21,6 +21,22 @@ type OrderStatus =
   | "cancelled"
   | "refunded";
 
+// Customer-facing fulfillment status (hide internal states like "unfulfilled").
+function fulfillmentText(status: string): string | null {
+  switch (status) {
+    case "ready_for_pickup":
+      return "Ready for pickup";
+    case "picked_up":
+      return "Picked up";
+    case "shipped":
+      return "Shipped";
+    case "delivered":
+      return "Delivered";
+    default:
+      return null;
+  }
+}
+
 function statusBadge(status: OrderStatus): {
   label: string;
   className: string;
@@ -112,6 +128,30 @@ export function MyOrders() {
                 </li>
               ))}
             </ul>
+
+            {fulfillmentText(order.fulfillmentStatus) ? (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4 text-sm">
+                <span className="text-muted-foreground">
+                  {fulfillmentText(order.fulfillmentStatus)}
+                  {order.trackingNumber ? (
+                    <span className="text-muted-foreground/70">
+                      {" "}
+                      · {order.trackingNumber}
+                    </span>
+                  ) : null}
+                </span>
+                {order.trackingUrl ? (
+                  <a
+                    href={order.trackingUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-medium text-clay underline-offset-2 hover:underline"
+                  >
+                    Track parcel
+                  </a>
+                ) : null}
+              </div>
+            ) : null}
 
             <div className="mt-4 flex justify-between border-t border-border pt-4 text-sm font-medium">
               <span>Total</span>

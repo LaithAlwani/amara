@@ -158,6 +158,59 @@ export const saveBoughtLabel = internalMutation({
   },
 });
 
+// --- Tracking webhook → status updates ---------------------------------------
+
+// Map a Shippo tracking status to our shipment state.
+function mapShippoStatus(
+  s: string,
+): { shipment: "in_transit" | "delivered" | "error" | null; delivered: boolean } {
+  switch (s) {
+    case "PRE_TRANSIT":
+    case "TRANSIT":
+      return { shipment: "in_transit", delivered: false };
+    case "DELIVERED":
+      return { shipment: "delivered", delivered: true };
+    case "RETURNED":
+    case "FAILURE":
+      return { shipment: "error", delivered: false };
+    default:
+      return { shipment: null, delivered: false };
+  }
+}
+
+export const applyTrackingUpdate = internalMutation({
+  args: { trackingNumber: v.string(), shippoStatus: v.string() },
+  handler: async (ctx, { trackingNumber, shippoStatus }) => {
+    const shipment = await ctx.db
+      .query("shipments")
+      .withIndex("by_trackingNumber", (q) =>
+        q.eq("trackingNumber", trackingNumber),
+      )
+      .first();
+    if (!shipment) return { ok: true, missing: true };
+
+    const m = mapShippoStatus(shippoStatus);
+    if (!m.shipment) return { ok: true };
+    if (shipment.status !== m.shipment) {
+      await ctx.db.patch("shipments", shipment._id, { status: m.shipment });
+    }
+
+    if (m.delivered) {
+      const order = await ctx.db.get("orders", shipment.orderId);
+      if (order && order.fulfillmentStatus !== "delivered") {
+        await ctx.db.patch("orders", order._id, {
+          fulfillmentStatus: "delivered",
+        });
+        await ctx.scheduler.runAfter(0, internal.emails.sendFulfillmentEmail, {
+          orderId: order._id,
+          kind: "delivered",
+        });
+      }
+    }
+    return { ok: true };
+  },
+});
+
 // --- Admin actions: rates + buy label ---------------------------------------
 
 async function assertAdmin(ctx: ActionCtx) {

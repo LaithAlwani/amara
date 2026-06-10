@@ -1055,3 +1055,15 @@ Built and deployed together; `tsc` + `eslint` clean, `next build` green.
 **Deferred:** address validation / parcel presets per product; return labels; rate caching; multi-parcel; webhook-driven `in_transit`/`delivered` tracking updates (status currently stops at `shipped`); the manual "Mark shipped" remains for non-Shippo fulfilment.
 
 **How to test Phase 18:** set `SHIPPO_API_KEY`, then admin → a **paid ship order** → **Shipping label** card → **Get rates** → **Buy label** (Shippo test mode returns a test label + tracking) → the order flips to shipped, the customer gets a tracking email, and the **Label PDF** opens (archived in Convex storage).
+
+## Phase 19 — Shipping tracking updates ✅ (2026-06-08)
+**Done:**
+- **Shippo tracking webhook** — `convex/http.ts` adds `POST /shippo/webhook` on the `.site` domain, gated by a shared token in the query string (`?token=<SHIPPO_WEBHOOK_TOKEN>`, since Shippo doesn't sign payloads). Parses `track_updated` events → `shipments.applyTrackingUpdate`.
+- **Status mapping** — `applyTrackingUpdate` finds the shipment by `by_trackingNumber`, maps Shippo status (`TRANSIT`/`PRE_TRANSIT` → `in_transit`, `DELIVERED` → `delivered`, `RETURNED`/`FAILURE` → `error`), updates the shipment, and on delivery flips the order to `fulfillmentStatus: "delivered"` + emails the customer (new **"delivered"** kind on `sendFulfillmentEmail`). Idempotent (no-ops if already at that state).
+- **Customer view** — `orders.listMyOrders` now joins the shipment for `trackingNumber`/`trackingUrl`; `/account/orders` shows the fulfillment state (Shipped / Delivered / Ready for pickup / Picked up) + the tracking number and a **Track parcel** link.
+- **Admin view** — the order's Shipping-label card shows a live **Status** row (Label purchased → In transit → Delivered).
+- `tsc` clean; `eslint` clean; `next build` green; Convex deployed.
+
+**Needed to use:** set `SHIPPO_WEBHOOK_TOKEN` (any random string) on the Convex deployment, then in the Shippo dashboard register a tracking webhook at `https://proficient-narwhal-277.convex.site/shippo/webhook?token=<that token>`. Shippo auto-tracks any label you buy and POSTs status changes there.
+
+**Deferred:** in-app push/notification; a customer-facing per-order detail page (tracking shown inline on the list for now); return/exception handling beyond marking `error`.
