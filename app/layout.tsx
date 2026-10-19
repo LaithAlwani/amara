@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Fraunces } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
-import { fetchQuery } from "convex/nextjs";
-import { api } from "@/convex/_generated/api";
 import "./globals.css";
 import { ConvexClientProvider } from "@/components/providers/convex-client-provider";
 import { CartProvider } from "@/components/providers/cart-provider";
@@ -20,6 +18,14 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-mono",
   subsets: ["latin"],
+});
+
+// Fraunces — soft, organic serif for display headings (the brand's voice).
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
+  subsets: ["latin"],
+  style: ["normal", "italic"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -81,26 +87,17 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const content = await fetchQuery(api.content.getSiteContent, {});
-  // Runtime brand colours — override the editable tokens before paint.
-  // Scoped to LIGHT mode only: these CMS values are the light palette, so
-  // applying them unconditionally would clobber the dark-mode tokens in
-  // globals.css and leave dark mode with a broken, low-contrast mix.
-  const c = content;
-  const accentStyle = `@media (prefers-color-scheme: light){:root{--clay:${c.accentHex};--color-clay:${c.accentHex};--primary:${c.primaryHex};--color-primary:${c.primaryHex};--background:${c.backgroundHex};--color-background:${c.backgroundHex};--foreground:${c.foregroundHex};--color-foreground:${c.foregroundHex};}}`;
-
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
-        <style dangerouslySetInnerHTML={{ __html: accentStyle }} />
         {/* Structured data for search + local/geo SEO */}
         <script
           type="application/ld+json"

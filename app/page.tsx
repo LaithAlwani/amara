@@ -19,16 +19,16 @@ export default async function Home() {
   return (
     <>
       {/* Hero (split) */}
-      <section className="mx-auto grid max-w-7xl items-center gap-10 px-4 pt-16 pb-20 sm:px-6 lg:grid-cols-2 lg:gap-16 lg:pt-24">
+      <section className="mx-auto grid max-w-7xl items-center gap-12 px-4 pt-16 pb-20 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16 lg:pt-24">
         <div className="max-w-xl">
           <p className="eyebrow">{content.heroEyebrow}</p>
-          <h1 className="mt-4 font-heading text-4xl font-semibold leading-[1.05] tracking-tight md:text-6xl">
+          <h1 className="mt-5 text-5xl font-medium leading-[1.02] tracking-[-0.01em] md:text-7xl">
             {content.heroTitle}
           </h1>
-          <p className="mt-5 max-w-md text-base leading-relaxed text-muted-foreground">
+          <p className="mt-6 max-w-md text-lg leading-relaxed text-muted-foreground">
             {content.heroSubtitle}
           </p>
-          <div className="mt-8 flex flex-wrap gap-3">
+          <div className="mt-9 flex flex-wrap gap-3">
             <Button size="lg" asChild>
               <Link href={content.heroCtaHref}>{content.heroCtaLabel}</Link>
             </Button>
@@ -37,13 +37,13 @@ export default async function Home() {
             </Button>
           </div>
         </div>
-        <div className="relative aspect-4/5 w-full h-100 overflow-hidden rounded-3xl border border-border bg-secondary">
+        <div className="relative aspect-4/5 max-h-[34rem] w-full overflow-hidden rounded-[2rem] border border-border bg-secondary">
           <Image
             src="https://picsum.photos/seed/amara-hero/1200/1500"
             alt="Amara botanical skincare arranged on stone"
             fill
             priority
-            sizes="(min-width: 1024px) 40vw, 100vw"
+            sizes="(min-width: 1024px) 45vw, 100vw"
             className="object-cover"
           />
         </div>
@@ -53,7 +53,7 @@ export default async function Home() {
       {bestSellers && bestSellers.products.length > 0 ? (
         <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
           <div className="flex items-end justify-between gap-4">
-            <h2 className="font-heading text-3xl font-semibold tracking-tight md:text-4xl">
+            <h2 className="text-3xl font-medium tracking-tight md:text-4xl">
               Best sellers
             </h2>
             <Link
@@ -74,7 +74,7 @@ export default async function Home() {
       {/* Featured collections (image tiles) */}
       {collections.length > 0 ? (
         <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
-          <h2 className="font-heading text-3xl font-semibold tracking-tight md:text-4xl">
+          <h2 className="text-3xl font-medium tracking-tight md:text-4xl">
             Shop by ritual
           </h2>
           <div className="mt-10 grid gap-6 sm:grid-cols-2">
@@ -82,7 +82,7 @@ export default async function Home() {
               <Link
                 key={collection._id}
                 href={`/collections/${collection.slug}`}
-                className="group relative aspect-16/10 overflow-hidden rounded-3xl bg-secondary"
+                className="group relative aspect-16/10 overflow-hidden rounded-[1.75rem] bg-secondary"
               >
                 {collection.image ? (
                   <Image
@@ -90,12 +90,12 @@ export default async function Home() {
                     alt={collection.title}
                     fill
                     sizes="(min-width: 640px) 45vw, 90vw"
-                    className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                    className="object-cover transition-transform duration-700 group-hover:scale-[1.04]"
                   />
                 ) : null}
                 <div className="absolute inset-0 bg-linear-to-t from-black/55 to-transparent" />
-                <div className="absolute bottom-0 p-6 text-white">
-                  <h3 className="font-heading text-2xl font-semibold tracking-tight">
+                <div className="absolute bottom-0 p-7 text-white">
+                  <h3 className="text-2xl font-medium tracking-tight">
                     {collection.title}
                   </h3>
                 </div>
@@ -127,7 +127,7 @@ export default async function Home() {
           ].map(({ icon: Icon, title, body }) => (
             <div key={title}>
               <Icon className="size-6 text-clay" weight="regular" />
-              <h3 className="mt-4 text-base font-medium">{title}</h3>
+              <h3 className="mt-4 text-lg font-medium">{title}</h3>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                 {body}
               </p>
@@ -138,8 +138,8 @@ export default async function Home() {
 
       {/* Closing CTA (full-width) */}
       <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
-        <div className="rounded-3xl bg-primary px-8 py-16 text-center text-primary-foreground sm:px-16">
-          <h2 className="mx-auto max-w-2xl font-heading text-3xl font-semibold tracking-tight md:text-4xl">
+        <div className="rounded-[2rem] bg-primary px-8 py-16 text-center text-primary-foreground sm:px-16">
+          <h2 className="mx-auto max-w-2xl text-3xl font-medium tracking-tight md:text-4xl">
             {content.ctaTitle}
           </h2>
           <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-primary-foreground/80">

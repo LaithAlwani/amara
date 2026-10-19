@@ -4,16 +4,131 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Amara — forest-botanical design tokens (taste-skill).
-   One locked accent (warm clay) on a forest + bone base. Light is primary;
-   dark is the auto counterpart via prefers-color-scheme (no per-section flips). */
+/* ===========================================================================
+   Amara — "Modern herbalist" design tokens
+   ---------------------------------------------------------------------------
+   Organic wellness, small-batch, no preservatives. The signature colour is the
+   dusty garnet-rose lifted from the wreath logo, paired with a deep moss green
+   (living plant material) on warm rosy-oat paper. Display type is Fraunces (a
+   soft organic serif); body/UI is Geist Sans. Light is primary; dark is the
+   auto counterpart via prefers-color-scheme.
 
+   Three layers:
+   1. PRIMITIVES  — raw palette ramp (never referenced by components directly)
+   2. SEMANTIC    — role tokens (--background, --primary, --clay, …) used by UI
+   3. COMPONENT   — radii, fonts, mapped Tailwind theme tokens
+   =========================================================================== */
+
+/* --- 1. PRIMITIVES -------------------------------------------------------- */
+:root {
+  /* Paper & ink (warm, rosy-neutral — deliberately NOT the #F4F1EA cliché) */
+  --oat-50: #faf6f2;
+  --oat-100: #f4eee9;
+  --oat-200: #e9ded3;
+  --oat-300: #ddcebf;
+  --stone-500: #6e635b;
+  --espresso-900: #2b2422;
+
+  /* Moss — the "plant material" green */
+  --moss-700: #38452f;
+  --moss-400: #9fb389;
+
+  /* Rose — the brand signature, from the logo's wreath + "AMARA" wordmark */
+  --rose-600: #9e4a5c; /* deep garnet-rose (text-safe on paper) */
+  --rose-400: #ce8294; /* lifted rose for dark surfaces */
+
+  /* Dark warm neutrals */
+  --bark-950: #1b1714;
+  --bark-900: #241e19;
+  --bark-800: #2c241e;
+  --bone-100: #ede4d9;
+}
+
+/* --- 2. SEMANTIC (light) -------------------------------------------------- */
+:root {
+  --radius: 0.875rem; /* softer, more organic than the default 0.5rem */
+
+  --background: #f4eee9; /* warm rosy-oat paper */
+  --foreground: #2b2422; /* warm espresso ink */
+  --card: #faf6f2;
+  --card-foreground: #2b2422;
+  --popover: #faf6f2;
+  --popover-foreground: #2b2422;
+  --primary: #38452f; /* deep moss */
+  --primary-foreground: #f4eee9;
+  --secondary: #e9ded3;
+  --secondary-foreground: #38452f;
+  --muted: #eae2da;
+  --muted-foreground: #6e635b;
+  --accent: #ede4da; /* quiet warm hover surface (NOT the brand accent) */
+  --accent-foreground: #38452f;
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: #e1d7cc;
+  --input: #e1d7cc;
+  --ring: #9e4a5c;
+
+  --clay: #9e4a5c; /* the one brand accent — garnet-rose */
+  --clay-foreground: #fbf7f4;
+}
+
+/* --- 2. SEMANTIC (dark, auto) --------------------------------------------- */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #1b1714; /* warm espresso-black */
+    --foreground: #ede4d9; /* warm bone */
+    --card: #241e19;
+    --card-foreground: #ede4d9;
+    --popover: #241e19;
+    --popover-foreground: #ede4d9;
+    --primary: #9fb389; /* lifted sage */
+    --primary-foreground: #1b1714;
+    --secondary: #2c241e;
+    --secondary-foreground: #ede4d9;
+    --muted: #2c241e;
+    --muted-foreground: #a89c90;
+    --accent: #2c241e;
+    --accent-foreground: #ede4d9;
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(1 0 0 / 12%);
+    --input: oklch(1 0 0 / 16%);
+    --ring: #ce8294;
+
+    --clay: #ce8294; /* lifted rose for dark */
+    --clay-foreground: #1b1410;
+  }
+}
+
+/* Explicit .dark class mirrors the auto values for a future theme toggle. */
+.dark {
+  --background: #1b1714;
+  --foreground: #ede4d9;
+  --card: #241e19;
+  --card-foreground: #ede4d9;
+  --popover: #241e19;
+  --popover-foreground: #ede4d9;
+  --primary: #9fb389;
+  --primary-foreground: #1b1714;
+  --secondary: #2c241e;
+  --secondary-foreground: #ede4d9;
+  --muted: #2c241e;
+  --muted-foreground: #a89c90;
+  --accent: #2c241e;
+  --accent-foreground: #ede4d9;
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: #ce8294;
+  --clay: #ce8294;
+  --clay-foreground: #1b1410;
+}
+
+/* --- 3. COMPONENT: map semantic tokens into the Tailwind theme ------------ */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-fraunces); /* Fraunces serif display */
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -40,82 +155,6 @@
   --radius-2xl: calc(var(--radius) * 1.8);
 }
 
-:root {
-  --radius: 0.75rem;
-
-  --background: #f4f1ea; /* bone */
-  --foreground: #14241a; /* ink (near-black green) */
-  --card: #faf8f2;
-  --card-foreground: #14241a;
-  --popover: #faf8f2;
-  --popover-foreground: #14241a;
-  --primary: #1f3d2b; /* forest */
-  --primary-foreground: #f4f1ea;
-  --secondary: #e6e1d4;
-  --secondary-foreground: #1f3d2b;
-  --muted: #e6e1d4;
-  --muted-foreground: #5b6157;
-  --accent: #ebe2d3; /* subtle warm hover surface (NOT the brand accent) */
-  --accent-foreground: #1f3d2b;
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: #dcd6c8;
-  --input: #dcd6c8;
-  --ring: #1f3d2b;
-
-  --clay: #c56a45; /* the one locked accent */
-  --clay-foreground: #fbfaf6;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0f1511; /* near-black green */
-    --foreground: #eceae0; /* light bone */
-    --card: #16201a;
-    --card-foreground: #eceae0;
-    --popover: #16201a;
-    --popover-foreground: #eceae0;
-    --primary: #8fb89b; /* lifted sage for contrast on dark */
-    --primary-foreground: #0f1511;
-    --secondary: #23302a;
-    --secondary-foreground: #eceae0;
-    --muted: #23302a;
-    --muted-foreground: #9ca89e;
-    --accent: #23302a;
-    --accent-foreground: #eceae0;
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 12%);
-    --input: oklch(1 0 0 / 16%);
-    --ring: #8fb89b;
-
-    --clay: #d98a66; /* lifted clay for dark */
-    --clay-foreground: #15110e;
-  }
-}
-
-/* Explicit .dark class mirrors the auto values for a future theme toggle. */
-.dark {
-  --background: #0f1511;
-  --foreground: #eceae0;
-  --card: #16201a;
-  --card-foreground: #eceae0;
-  --popover: #16201a;
-  --popover-foreground: #eceae0;
-  --primary: #8fb89b;
-  --primary-foreground: #0f1511;
-  --secondary: #23302a;
-  --secondary-foreground: #eceae0;
-  --muted: #23302a;
-  --muted-foreground: #9ca89e;
-  --accent: #23302a;
-  --accent-foreground: #eceae0;
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 16%);
-  --ring: #8fb89b;
-  --clay: #d98a66;
-  --clay-foreground: #15110e;
-}
-
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -126,6 +165,12 @@
   html {
     @apply font-sans;
   }
+  /* Headings carry the serif personality. */
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-fraunces), ui-serif, Georgia, serif;
+  }
   /* Branded selection */
   ::selection {
     background: var(--clay);
@@ -134,8 +179,10 @@
 }
 
 @layer components {
-  /* Small uppercase label used sparingly (taste-skill eyebrow restraint). */
+  /* Small label used sparingly. A serif italic in the rose accent — not the
+     generated all-caps / tracked-out tell. */
   .eyebrow {
-    @apply text-xs font-medium uppercase tracking-[0.18em] text-clay;
+    font-family: var(--font-fraunces), ui-serif, Georgia, serif;
+    @apply text-base font-medium italic text-clay;
   }
 }
