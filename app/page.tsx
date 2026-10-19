@@ -37,7 +37,7 @@ export default async function Home() {
             </Button>
           </div>
         </div>
-        <div className="relative aspect-4/5 w-full overflow-hidden rounded-3xl border border-border bg-secondary">
+        <div className="relative aspect-4/5 w-full h-100 overflow-hidden rounded-3xl border border-border bg-secondary">
           <Image
             src="https://picsum.photos/seed/amara-hero/1200/1500"
             alt="Amara botanical skincare arranged on stone"

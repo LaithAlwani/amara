@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import { notFound } from "next/navigation";
 import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
+import { ProductGallery } from "@/components/shop/product-gallery";
 import { ProductPurchasePanel } from "@/components/shop/product-purchase-panel";
 import { WishlistButton } from "@/components/shop/wishlist-button";
 
@@ -31,47 +31,14 @@ export default async function ProductPage({
   const product = await fetchQuery(api.products.getProductBySlug, { slug });
   if (!product) notFound();
 
-  const [hero, ...rest] = product.images;
-
   return (
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:py-16">
-      <div className="grid gap-10 lg:grid-cols-2 lg:gap-16">
+      <div className="grid gap-8 sm:grid-cols-2 sm:gap-10 lg:gap-16">
         {/* Gallery */}
-        <div className="space-y-4">
-          <div className="relative aspect-4/5 w-full overflow-hidden rounded-3xl bg-secondary">
-            {hero ? (
-              <Image
-                src={hero}
-                alt={product.name}
-                fill
-                priority
-                sizes="(min-width: 1024px) 45vw, 100vw"
-                className="object-cover"
-              />
-            ) : null}
-          </div>
-          {rest.length > 0 ? (
-            <div className="grid grid-cols-3 gap-4">
-              {rest.slice(0, 3).map((src, i) => (
-                <div
-                  key={i}
-                  className="relative aspect-square overflow-hidden rounded-2xl bg-secondary"
-                >
-                  <Image
-                    src={src}
-                    alt={`${product.name} view ${i + 2}`}
-                    fill
-                    sizes="20vw"
-                    className="object-cover"
-                  />
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </div>
+        <ProductGallery images={product.images} alt={product.name} />
 
         {/* Details */}
-        <div className="lg:py-4">
+        <div className="sm:py-4">
           <h1 className="font-heading text-3xl font-semibold tracking-tight md:text-4xl">
             {product.name}
           </h1>
