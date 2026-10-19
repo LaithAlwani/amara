@@ -122,11 +122,6 @@ export function ProductPurchasePanel({ variants }: { variants: Variant[] }) {
           )}
         </Button>
       </div>
-
-      <p className="text-xs text-muted-foreground">
-        Prefer to never run out? Choose <strong>Subscribe &amp; Save</strong> at
-        checkout for recurring deliveries.
-      </p>
     </div>
   );
 }

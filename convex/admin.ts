@@ -118,7 +118,7 @@ export const getOrder = query({
       taxCents: order.taxCents,
       totalCents: order.totalCents,
       paidAt: order.paidAt ?? null,
-      stripePaymentIntentId: order.stripePaymentIntentId ?? null,
+      squarePaymentId: order.squarePaymentId ?? null,
       shippingAddress: order.shippingAddress ?? null,
       pickupLocation,
       items: items.map((i) => ({

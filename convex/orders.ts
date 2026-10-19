@@ -9,20 +9,19 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import { awardPoints, redeemPoints, pointsEarnedFor } from "./rewards";
-import { redeemGiftCardBalance } from "./giftCards";
 
 // Apply all the side effects of an order becoming paid: mark paid, decrement
-// inventory, record discount/gift-card/points usage, clear the cart, and email.
-// Shared by the Stripe webhook path and the $0 (fully gift-card-covered) path.
+// inventory, record discount/points usage, clear the cart, and email.
+// Shared by the Square webhook path and the $0 (fully points/discount) path.
 async function applyPaidEffects(
   ctx: MutationCtx,
   order: Doc<"orders">,
-  paymentIntentId?: string,
+  squarePaymentId?: string,
 ): Promise<void> {
   await ctx.db.patch("orders", order._id, {
     status: "paid",
     paidAt: Date.now(),
-    stripePaymentIntentId: paymentIntentId,
+    squarePaymentId,
   });
 
   const items = await ctx.db
@@ -56,14 +55,6 @@ async function applyPaidEffects(
     });
   }
 
-  if (order.giftCardCode && (order.giftCardRedeemedCents ?? 0) > 0) {
-    await redeemGiftCardBalance(
-      ctx,
-      order.giftCardCode,
-      order.giftCardRedeemedCents!,
-    );
-  }
-
   if (order.userId) {
     if (order.pointsRedeemed && order.pointsRedeemed > 0) {
       await redeemPoints(ctx, order.userId, order.pointsRedeemed, order._id);
@@ -93,46 +84,30 @@ async function applyPaidEffects(
   });
 }
 
-// --- Stripe payment plumbing (internal; called from convex/payments.ts) ----
+// --- Square payment plumbing (internal; called from convex/payments.ts) ----
 
-// Data needed to build a Stripe Checkout Session for an order.
-export const getOrderForStripe = internalQuery({
+// Data needed to build a Square payment link for an order. The order total is
+// already net of discount + points (gift cards removed), so it's the amount due.
+export const getOrderForSquare = internalQuery({
   args: { orderId: v.id("orders") },
   handler: async (ctx, { orderId }) => {
     const order = await ctx.db.get("orders", orderId);
     if (!order) return null;
-    const items = await ctx.db
-      .query("orderItems")
-      .withIndex("by_order", (q) => q.eq("orderId", orderId))
-      .take(200);
     return {
       orderNumber: order.orderNumber,
       status: order.status,
       email: order.email,
-      shippingCents: order.shippingCents,
-      discountCents: order.discountCents ?? 0,
-      discountCode: order.discountCode ?? null,
-      pointsRedeemed: order.pointsRedeemed ?? 0,
-      giftCardRedeemedCents: order.giftCardRedeemedCents ?? 0,
-      taxCents: order.taxCents,
-      items: items.map((i) => ({
-        name: i.nameSnapshot,
-        variantTitle: i.variantTitleSnapshot,
-        quantity: i.quantity,
-        unitPriceCents: i.unitPriceCents,
-      })),
+      amountDueCents: order.totalCents,
     };
   },
 });
 
-export const attachStripeSession = internalMutation({
-  args: { orderId: v.id("orders"), sessionId: v.string() },
-  handler: async (ctx, { orderId, sessionId }) => {
+export const attachSquareOrder = internalMutation({
+  args: { orderId: v.id("orders"), squareOrderId: v.string() },
+  handler: async (ctx, { orderId, squareOrderId }) => {
     const order = await ctx.db.get("orders", orderId);
     if (!order || order.status !== "pending") return null;
-    await ctx.db.patch("orders", orderId, {
-      stripeCheckoutSessionId: sessionId,
-    });
+    await ctx.db.patch("orders", orderId, { squareOrderId });
     return null;
   },
 });
@@ -145,7 +120,7 @@ async function alreadyProcessed(
   const existing = await ctx.db
     .query("webhookEvents")
     .withIndex("by_source_and_eventId", (q) =>
-      q.eq("source", "stripe").eq("eventId", eventId),
+      q.eq("source", "square").eq("eventId", eventId),
     )
     .unique();
   return existing !== null;
@@ -154,23 +129,23 @@ async function alreadyProcessed(
 // Idempotent: mark order paid, decrement inventory, and clear the source cart.
 export const finalizeOrderPaid = internalMutation({
   args: {
-    sessionId: v.string(),
-    paymentIntentId: v.optional(v.string()),
+    squareOrderId: v.string(),
+    squarePaymentId: v.optional(v.string()),
     eventId: v.string(),
   },
-  handler: async (ctx, { sessionId, paymentIntentId, eventId }) => {
+  handler: async (ctx, { squareOrderId, squarePaymentId, eventId }) => {
     if (await alreadyProcessed(ctx, eventId)) return { ok: true, dup: true };
 
     const order = await ctx.db
       .query("orders")
-      .withIndex("by_stripeCheckoutSessionId", (q) =>
-        q.eq("stripeCheckoutSessionId", sessionId),
+      .withIndex("by_squareOrderId", (q) =>
+        q.eq("squareOrderId", squareOrderId),
       )
       .unique();
 
     // Record the event regardless so retries are cheap no-ops.
     await ctx.db.insert("webhookEvents", {
-      source: "stripe",
+      source: "square",
       eventId,
       processedAt: Date.now(),
     });
@@ -178,13 +153,13 @@ export const finalizeOrderPaid = internalMutation({
     if (!order) return { ok: true, missing: true };
     if (order.status !== "pending") return { ok: true, already: order.status };
 
-    await applyPaidEffects(ctx, order, paymentIntentId);
+    await applyPaidEffects(ctx, order, squarePaymentId);
     return { ok: true };
   },
 });
 
-// Finalize an order whose full amount was covered (gift card / points / code) so
-// nothing is charged — there is no Stripe session for it. Called from the
+// Finalize an order whose full amount was covered (points / discount) so
+// nothing is charged — there is no Square payment for it. Called from the
 // checkout action when the amount due is $0.
 export const finalizeFreeOrder = internalMutation({
   args: { orderId: v.id("orders") },
@@ -193,29 +168,6 @@ export const finalizeFreeOrder = internalMutation({
     if (!order) return { ok: true, missing: true };
     if (order.status !== "pending") return { ok: true, already: order.status };
     await applyPaidEffects(ctx, order);
-    return { ok: true };
-  },
-});
-
-// Cancel a still-pending order whose Stripe session expired or failed.
-export const cancelPendingOrder = internalMutation({
-  args: { sessionId: v.string(), eventId: v.string() },
-  handler: async (ctx, { sessionId, eventId }) => {
-    if (await alreadyProcessed(ctx, eventId)) return { ok: true, dup: true };
-    await ctx.db.insert("webhookEvents", {
-      source: "stripe",
-      eventId,
-      processedAt: Date.now(),
-    });
-    const order = await ctx.db
-      .query("orders")
-      .withIndex("by_stripeCheckoutSessionId", (q) =>
-        q.eq("stripeCheckoutSessionId", sessionId),
-      )
-      .unique();
-    if (order && order.status === "pending") {
-      await ctx.db.patch("orders", order._id, { status: "cancelled" });
-    }
     return { ok: true };
   },
 });

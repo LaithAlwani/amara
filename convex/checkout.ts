@@ -5,7 +5,6 @@ import { findOpenCart } from "./cart";
 import { primaryImage } from "./catalog";
 import { evaluateDiscount } from "./discounts";
 import { getPointsBalance } from "./rewards";
-import { evaluateGiftCard } from "./giftCards";
 
 const fulfillmentValidator = v.union(v.literal("ship"), v.literal("pickup"));
 
@@ -88,18 +87,10 @@ export const quoteCart = query({
     discountCode: v.optional(v.string()),
     email: v.optional(v.string()),
     pointsToRedeem: v.optional(v.number()),
-    giftCardCode: v.optional(v.string()),
   },
   handler: async (
     ctx,
-    {
-      anonId,
-      fulfillmentMethod,
-      discountCode,
-      email,
-      pointsToRedeem,
-      giftCardCode,
-    },
+    { anonId, fulfillmentMethod, discountCode, email, pointsToRedeem },
   ) => {
     const settings = await getSettings(ctx);
     const pickup = await getActivePickup(ctx);
@@ -128,9 +119,6 @@ export const quoteCart = query({
         discountError: null as string | null,
         pointsBalance: 0,
         pointsRedeemed: 0,
-        giftCardCode: null as string | null,
-        giftCardRedeemedCents: 0,
-        giftCardError: null as string | null,
         amountDueCents: 0,
         taxCents: 0,
         totalCents: 0,
@@ -203,9 +191,6 @@ export const quoteCart = query({
       codeDiscount + pointsRedeemed,
     );
 
-    // Gift card applies to the order total (post-tax), leaving a small charge.
-    const gift = await evaluateGiftCard(ctx, giftCardCode, totals.totalCents);
-
     return {
       empty: items.length === 0,
       items,
@@ -218,10 +203,7 @@ export const quoteCart = query({
       discountError: discount.error,
       pointsBalance: balance,
       pointsRedeemed,
-      giftCardCode: gift.card?.code ?? null,
-      giftCardRedeemedCents: gift.redeemCents,
-      giftCardError: gift.error,
-      amountDueCents: totals.totalCents - gift.redeemCents,
+      amountDueCents: totals.totalCents,
       issues,
       pickupLocation,
     };
@@ -257,7 +239,6 @@ export const createDraftOrder = mutation({
     pickupLocationId: v.optional(v.id("pickupLocations")),
     discountCode: v.optional(v.string()),
     pointsToRedeem: v.optional(v.number()),
-    giftCardCode: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const email = args.email.trim().toLowerCase();
@@ -321,9 +302,6 @@ export const createDraftOrder = mutation({
       codeDiscount + pointsRedeemed,
     );
 
-    // Gift card redemption against the order total.
-    const gift = await evaluateGiftCard(ctx, args.giftCardCode, totalCents);
-
     // Fulfillment-specific requirements.
     let pickupLocationId: Id<"pickupLocations"> | undefined;
     let shippingAddress = undefined;
@@ -362,8 +340,6 @@ export const createDraftOrder = mutation({
       discountCode: discount.code?.code,
       discountCents: codeDiscount || undefined,
       pointsRedeemed: pointsRedeemed || undefined,
-      giftCardCode: gift.card?.code,
-      giftCardRedeemedCents: gift.redeemCents || undefined,
     });
 
     for (const { variant, product, item } of lines) {

@@ -14,7 +14,6 @@ const ADMIN_NAV = [
   { href: "/admin/products", label: "Products" },
   { href: "/admin/collections", label: "Collections" },
   { href: "/admin/discounts", label: "Discounts" },
-  { href: "/admin/gift-cards", label: "Gift cards" },
   { href: "/admin/content", label: "Content" },
   { href: "/admin/settings", label: "Settings" },
 ];

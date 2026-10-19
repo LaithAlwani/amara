@@ -4,20 +4,25 @@ import { internal } from "./_generated/api";
 
 const http = httpRouter();
 
-// Stripe webhook. Lives on the Convex *.site domain:
-//   https://<deployment>.convex.site/stripe/webhook
+// Square webhook. Lives on the Convex *.site domain:
+//   https://<deployment>.convex.site/square/webhook
+// Square signs over (notificationUrl + rawBody); we pass request.url (the exact
+// URL hit, which must match the webhook subscription) to the verifier.
 http.route({
-  path: "/stripe/webhook",
+  path: "/square/webhook",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    const signature = request.headers.get("stripe-signature");
+    const signature = request.headers.get("x-square-hmacsha256-signature");
     if (!signature) {
-      return new Response("Missing stripe-signature header", { status: 400 });
+      return new Response("Missing x-square-hmacsha256-signature header", {
+        status: 400,
+      });
     }
     const payload = await request.text();
-    const result = await ctx.runAction(internal.payments.handleStripeWebhook, {
+    const result = await ctx.runAction(internal.payments.handleSquareWebhook, {
       payload,
       signature,
+      url: request.url,
     });
     return new Response(JSON.stringify(result), {
       status: result.ok ? 200 : 400,

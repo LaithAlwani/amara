@@ -197,9 +197,7 @@ export function AdminOrderDetail({ orderId }: { orderId: string }) {
         {order.paidAt && (
           <p className="mt-4 border-t border-border pt-4 text-xs text-muted-foreground">
             Paid {dateFmt.format(order.paidAt)}
-            {order.stripePaymentIntentId
-              ? ` · ${order.stripePaymentIntentId}`
-              : ""}
+            {order.squarePaymentId ? ` · ${order.squarePaymentId}` : ""}
           </p>
         )}
       </div>

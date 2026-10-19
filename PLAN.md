@@ -1083,3 +1083,25 @@ Built and deployed together; `tsc` + `eslint` clean, `next build` green.
 **Code hardening (2026-10-18):**
 - `convex/shipping/shippo.ts` — on zero rates the thrown error now puts the real blocker (credential/endpoint/authorization mismatch) **first** and dedupes the harmless "not approved / unsupported option" shared-account noise, with an actionable explanation (check carrier connected + test/live mode matches the token).
 - New optional env var **`SHIPPO_CARRIER_ACCOUNTS`** (comma-separated carrier-account `object_id`s) on the Convex deployment — scopes rate requests to just those accounts so we never hit Shippo's shared accounts. Find ids via `GET https://api.goshippo.com/carrier_accounts/` (match the `test` flag to your token).
+
+## Phase 20 — Payments: Stripe → Square (one-time only) ✅ (2026-10-19)
+**Why:** the store owner uses Square, not Stripe.
+
+**Done:**
+- **One-time checkout on Square** — `convex/payments.ts` rewritten to use Square's **Payment Links** via raw `fetch` (no SDK, same pattern as the Shippo adapter) + Node `crypto` for the webhook HMAC. `createCheckoutSession` builds a hosted payment link (`quick_pay` for the order's net total, which is already discount/points-adjusted), stores the Square `order_id` on our order, and redirects to `/checkout/success?order=<id>` (our id is passed as `order` because Square appends its own `orderId`). A $0 order (fully covered by points/discount) finalizes directly with no link.
+- **Webhook** — `convex/http.ts` now exposes `POST /square/webhook`; `handleSquareWebhook` verifies `x-square-hmacsha256-signature` (HMAC-SHA256 of `notificationUrl + rawBody`, base64) and on `payment.updated`/`payment.created` with `status: COMPLETED` finalizes the order by `squareOrderId` (idempotent via `webhookEvents` source `"square"`).
+- **Schema (additive, non-destructive)** — `orders` gained `squareOrderId` (+ `by_squareOrderId` index) and `squarePaymentId`. Legacy `stripe*`/`subscriptionId` fields + the `subscriptions`/`subscriptionItems`/`giftCards` tables are **kept optional** so existing order documents still validate (no data purge). `webhookEvents.source` adds `"square"`.
+- **Deleted** (Stripe-coupled, no Square equivalent built): `convex/subscriptions.ts`, `convex/giftCards.ts`, `emails.sendGiftCardEmail`, and all their routes/components — `/gift-cards` (+ success), `/admin/gift-cards`, `/account/subscriptions`, `gift-card-buy`, `gift-card-balance`, `admin-gift-cards`, `my-subscriptions`. Removed the subscription + gift-card logic from `checkout.ts` (promo codes + loyalty points stay), the Subscribe&Save/free-ship admin card (`admin-discounts`), `discounts.getSubscriptionDiscount/setSubscriptionDiscount`, and the PDP subscribe hint. Hid nav/menu/footer entry points (header "Subscriptions", footer "Gift cards", admin "Gift cards" tab).
+- **Checkout UI** — `checkout-client.tsx` rewritten to one-time only (no mode toggle, no gift-card field); copy now says "secure Square checkout". `stripe` npm package removed.
+- `tsc` clean; `eslint` 0 errors; Convex deployed; `next build` green.
+
+**Env (replaces `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET`):** set on the Convex deployment per env —
+```
+SQUARE_ENVIRONMENT=sandbox|production
+SQUARE_ACCESS_TOKEN=EAAA…        # Sandbox token for dev, Production token for prod
+SQUARE_LOCATION_ID=L…            # matching-mode location id
+SQUARE_WEBHOOK_SIGNATURE_KEY=…   # from the Square webhook subscription
+```
+**Square webhook URL** (register in Square → Developer → Webhooks; event `payment.updated`, also `payment.created`): `https://<deployment>.convex.site/square/webhook` (dev `proficient-narwhal-277`, prod `dynamic-buffalo-906`). Use the Sandbox app for the dev URL and the Production app for the prod URL. The old `STRIPE_*` vars and the `/stripe/webhook` endpoint are no longer used.
+
+**Deferred:** Square subscriptions (needs Catalog plans + Web Payments SDK card-on-file — no hosted recurring checkout) and Square Gift Cards API; both features are removed/hidden until a later phase. No Square expiry webhook, so abandoned `pending` drafts linger (already filtered from customer views; add a cron later if needed).

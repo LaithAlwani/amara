@@ -160,8 +160,13 @@ export default defineSchema({
     pointsRedeemed: v.optional(v.number()), // loyalty points spent (1 pt = 1¢)
     giftCardCode: v.optional(v.string()),
     giftCardRedeemedCents: v.optional(v.number()),
-    subscriptionId: v.optional(v.id("subscriptions")), // set for renewal orders
-    stripeInvoiceId: v.optional(v.string()), // subscription cycle idempotency
+    // Square payment linkage (one-time checkout).
+    squareOrderId: v.optional(v.string()), // Square order id behind the payment link
+    squarePaymentId: v.optional(v.string()), // Square payment id once completed
+    // Legacy Stripe/subscription fields — kept optional so existing order
+    // documents still validate; no longer written. (Payments moved to Square.)
+    subscriptionId: v.optional(v.id("subscriptions")),
+    stripeInvoiceId: v.optional(v.string()),
     stripeCheckoutSessionId: v.optional(v.string()),
     stripePaymentIntentId: v.optional(v.string()),
     paidAt: v.optional(v.number()),
@@ -169,6 +174,7 @@ export default defineSchema({
     .index("by_userId", ["userId"])
     .index("by_email", ["email"])
     .index("by_orderNumber", ["orderNumber"])
+    .index("by_squareOrderId", ["squareOrderId"])
     .index("by_stripeCheckoutSessionId", ["stripeCheckoutSessionId"])
     .index("by_stripeInvoiceId", ["stripeInvoiceId"])
     .index("by_status", ["status"]),
@@ -364,7 +370,11 @@ export default defineSchema({
   }).index("by_key", ["key"]),
 
   webhookEvents: defineTable({
-    source: v.union(v.literal("stripe"), v.literal("shipping")),
+    source: v.union(
+      v.literal("square"),
+      v.literal("stripe"), // legacy rows
+      v.literal("shipping"),
+    ),
     eventId: v.string(),
     processedAt: v.number(),
   }).index("by_source_and_eventId", ["source", "eventId"]),

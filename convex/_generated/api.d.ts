@@ -20,7 +20,6 @@ import type * as collections from "../collections.js";
 import type * as content from "../content.js";
 import type * as discounts from "../discounts.js";
 import type * as emails from "../emails.js";
-import type * as giftCards from "../giftCards.js";
 import type * as http from "../http.js";
 import type * as orders from "../orders.js";
 import type * as payments from "../payments.js";
@@ -30,7 +29,6 @@ import type * as seed from "../seed.js";
 import type * as shipments from "../shipments.js";
 import type * as shipping_shippo from "../shipping/shippo.js";
 import type * as shipping_types from "../shipping/types.js";
-import type * as subscriptions from "../subscriptions.js";
 import type * as users from "../users.js";
 import type * as wishlist from "../wishlist.js";
 
@@ -53,7 +51,6 @@ declare const fullApi: ApiFromModules<{
   content: typeof content;
   discounts: typeof discounts;
   emails: typeof emails;
-  giftCards: typeof giftCards;
   http: typeof http;
   orders: typeof orders;
   payments: typeof payments;
@@ -63,7 +60,6 @@ declare const fullApi: ApiFromModules<{
   shipments: typeof shipments;
   "shipping/shippo": typeof shipping_shippo;
   "shipping/types": typeof shipping_types;
-  subscriptions: typeof subscriptions;
   users: typeof users;
   wishlist: typeof wishlist;
 }>;

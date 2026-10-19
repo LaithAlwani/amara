@@ -123,9 +123,6 @@ export function SiteHeader() {
                   <Link href="/account/wishlist">Wishlist</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link href="/account/subscriptions">Subscriptions</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
                   <Link href="/account/rewards">Rewards</Link>
                 </DropdownMenuItem>
                 {me?.role === "admin" && (

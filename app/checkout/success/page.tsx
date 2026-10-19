@@ -9,14 +9,15 @@ export const metadata: Metadata = {
 export default async function CheckoutSuccessPage({
   searchParams,
 }: {
-  searchParams: Promise<{ orderId?: string }>;
+  // Our Convex order id is passed as `order` (Square appends its own `orderId`).
+  searchParams: Promise<{ order?: string }>;
 }) {
-  const { orderId } = await searchParams;
-  if (!orderId) notFound();
+  const { order } = await searchParams;
+  if (!order) notFound();
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-20 sm:px-6">
-      <OrderConfirmation orderId={orderId} />
+      <OrderConfirmation orderId={order} />
     </div>
   );
 }

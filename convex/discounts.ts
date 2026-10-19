@@ -112,38 +112,6 @@ export const listCodes = query({
   },
 });
 
-// Subscribe & Save percent lives on the settings singleton.
-export const getSubscriptionDiscount = query({
-  args: {},
-  handler: async (ctx) => {
-    await requireAdmin(ctx);
-    const settings = await ctx.db
-      .query("settings")
-      .withIndex("by_key", (q) => q.eq("key", "global"))
-      .unique();
-    return settings?.subscriptionDiscountPercent ?? 0;
-  },
-});
-
-export const setSubscriptionDiscount = mutation({
-  args: { percent: v.number() },
-  handler: async (ctx, { percent }) => {
-    await requireAdmin(ctx);
-    if (percent < 0 || percent > 90) {
-      throw new ConvexError("Percent must be between 0 and 90.");
-    }
-    const settings = await ctx.db
-      .query("settings")
-      .withIndex("by_key", (q) => q.eq("key", "global"))
-      .unique();
-    if (!settings) throw new ConvexError("Settings not configured.");
-    await ctx.db.patch("settings", settings._id, {
-      subscriptionDiscountPercent: Math.round(percent),
-    });
-    return { ok: true };
-  },
-});
-
 // Free-shipping threshold (cents). Applied to subscription boxes; null/0 means
 // no free shipping.
 export const getFreeShipThreshold = query({
