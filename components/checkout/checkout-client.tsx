@@ -1,5 +1,6 @@
 "use client";
 
+import { errorMessage } from "@/lib/error-message";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -187,7 +188,7 @@ export function CheckoutClient() {
       });
       window.location.href = url;
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong.");
+      setError(errorMessage(e, "Something went wrong."));
       setPlacing(false);
     }
   }
@@ -208,7 +209,7 @@ export function CheckoutClient() {
       });
       window.location.href = url;
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong.");
+      setError(errorMessage(e, "Something went wrong."));
       setPlacing(false);
     }
   }

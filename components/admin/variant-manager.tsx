@@ -1,5 +1,6 @@
 "use client";
 
+import { errorMessage } from "@/lib/error-message";
 import { useState } from "react";
 import { useMutation } from "convex/react";
 import { Trash, Warning } from "@phosphor-icons/react";
@@ -290,7 +291,7 @@ export function VariantManager({
               await updateVariant({ variantId: variant._id, ...v });
               toast.success("Variant saved");
             } catch (e) {
-              toast.error(e instanceof Error ? e.message : "Save failed");
+              toast.error(errorMessage(e, "Save failed"));
             }
           }}
           onDelete={async () => {
@@ -298,7 +299,7 @@ export function VariantManager({
               await deleteVariant({ variantId: variant._id });
               toast.success("Variant deleted");
             } catch (e) {
-              toast.error(e instanceof Error ? e.message : "Delete failed");
+              toast.error(errorMessage(e, "Delete failed"));
             }
           }}
         />
@@ -314,7 +315,7 @@ export function VariantManager({
               await createVariant({ productId, ...v });
               toast.success("Variant added");
             } catch (e) {
-              toast.error(e instanceof Error ? e.message : "Could not add");
+              toast.error(errorMessage(e, "Could not add"));
             }
           }}
         />

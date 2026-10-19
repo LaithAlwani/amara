@@ -1,5 +1,6 @@
 "use client";
 
+import { errorMessage } from "@/lib/error-message";
 import { useRef, useState } from "react";
 import Image from "next/image";
 import { useMutation } from "convex/react";
@@ -30,7 +31,7 @@ export function ProductImages({
     try {
       await setProductImages({ productId, storageIds: next });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not update images");
+      toast.error(errorMessage(e, "Could not update images"));
     } finally {
       setBusy(false);
     }
@@ -58,7 +59,7 @@ export function ProductImages({
         uploaded.length === 1 ? "Image added" : `${uploaded.length} images added`,
       );
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Upload failed");
+      toast.error(errorMessage(e, "Upload failed"));
     } finally {
       setBusy(false);
       if (fileInput.current) fileInput.current.value = "";

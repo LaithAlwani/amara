@@ -1,5 +1,6 @@
 "use client";
 
+import { errorMessage } from "@/lib/error-message";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useQuery, useMutation } from "convex/react";
@@ -39,7 +40,7 @@ export function WishlistButton({
       const res = await toggle({ productId: id });
       toast.success(res.wishlisted ? "Saved to wishlist" : "Removed from wishlist");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not update wishlist");
+      toast.error(errorMessage(err, "Could not update wishlist"));
     }
   }
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { errorMessage } from "@/lib/error-message";
 import { useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation } from "convex/react";
@@ -56,7 +57,7 @@ export function AdminOrderDetail({ orderId }: { orderId: string }) {
       await action({ orderId: id });
       toast.success(success);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Something went wrong");
+      toast.error(errorMessage(e, "Something went wrong"));
     } finally {
       setBusy(false);
     }

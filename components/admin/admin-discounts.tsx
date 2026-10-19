@@ -1,5 +1,6 @@
 "use client";
 
+import { errorMessage } from "@/lib/error-message";
 import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { Trash, SpinnerGap } from "@phosphor-icons/react";
@@ -71,7 +72,7 @@ export function AdminDiscounts() {
       setUsageLimit("");
       setExpiresAt("");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not create code");
+      toast.error(errorMessage(err, "Could not create code"));
     } finally {
       setBusy(false);
     }
@@ -111,7 +112,7 @@ export function AdminDiscounts() {
               toast.success("Subscribe & Save updated");
               setSubPct(null);
             } catch (e) {
-              toast.error(e instanceof Error ? e.message : "Failed");
+              toast.error(errorMessage(e, "Failed"));
             }
           }}
         >
@@ -143,7 +144,7 @@ export function AdminDiscounts() {
               toast.success("Free-shipping threshold updated");
               setFreeShipInput(null);
             } catch (e) {
-              toast.error(e instanceof Error ? e.message : "Failed");
+              toast.error(errorMessage(e, "Failed"));
             }
           }}
         >
@@ -291,7 +292,7 @@ export function AdminDiscounts() {
                           setActive({ codeId: c._id, active: !c.active }).catch(
                             (e) =>
                               toast.error(
-                                e instanceof Error ? e.message : "Failed",
+                                errorMessage(e, "Failed"),
                               ),
                           )
                         }
@@ -314,7 +315,7 @@ export function AdminDiscounts() {
                             .then(() => toast.success("Deleted"))
                             .catch((e) =>
                               toast.error(
-                                e instanceof Error ? e.message : "Failed",
+                                errorMessage(e, "Failed"),
                               ),
                             );
                         }}

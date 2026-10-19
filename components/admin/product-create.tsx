@@ -1,5 +1,6 @@
 "use client";
 
+import { errorMessage } from "@/lib/error-message";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation } from "convex/react";
@@ -18,7 +19,7 @@ export function ProductCreate() {
       toast.success("Product created — now add variants");
       router.push(`/admin/products/${productId}`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not create product");
+      toast.error(errorMessage(e, "Could not create product"));
     }
   }
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { errorMessage } from "@/lib/error-message";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation } from "convex/react";
@@ -21,7 +22,7 @@ export function CollectionCreate() {
       toast.success("Collection created — now add products");
       router.push(`/admin/collections/${collectionId}`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not create");
+      toast.error(errorMessage(e, "Could not create"));
     }
   }
 

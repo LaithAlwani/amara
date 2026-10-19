@@ -1,5 +1,6 @@
 "use client";
 
+import { errorMessage } from "@/lib/error-message";
 import { useState } from "react";
 import Link from "next/link";
 import { useQuery, useAction } from "convex/react";
@@ -63,7 +64,7 @@ export function MySubscriptions() {
       await fn({ subscriptionId: id });
       toast.success(msg);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Something went wrong");
+      toast.error(errorMessage(e, "Something went wrong"));
     } finally {
       setBusyId(null);
     }

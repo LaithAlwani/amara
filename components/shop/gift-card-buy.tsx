@@ -1,5 +1,6 @@
 "use client";
 
+import { errorMessage } from "@/lib/error-message";
 import { useState } from "react";
 import { useAction } from "convex/react";
 import { useUser } from "@clerk/nextjs";
@@ -49,7 +50,7 @@ export function GiftCardBuy() {
       });
       window.location.href = url;
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong.");
+      setError(errorMessage(e, "Something went wrong."));
       setBusy(false);
     }
   }

@@ -1067,3 +1067,19 @@ Built and deployed together; `tsc` + `eslint` clean, `next build` green.
 **Needed to use:** set `SHIPPO_WEBHOOK_TOKEN` (any random string) on the Convex deployment, then in the Shippo dashboard register a tracking webhook at `https://proficient-narwhal-277.convex.site/shippo/webhook?token=<that token>`. Shippo auto-tracks any label you buy and POSTs status changes there.
 
 **Deferred:** in-app push/notification; a customer-facing per-order detail page (tracking shown inline on the list for now); return/exception handling beyond marking `error`.
+
+## Testing Shippo locally (Phase 18/19 notes — 2026-10-18)
+
+**Not a localhost problem.** All Shippo code runs **inside Convex** (`convex/shipments.ts`, `convex/http.ts`), which is cloud-hosted even in dev. Shippo API calls go out from Convex, and the tracking webhook lives at the **public** `https://<deployment>.convex.site/shippo/webhook` — so Shippo can reach it with **no ngrok/tunnel** while you develop locally. (If it were a Next.js route on `localhost:3000`, you'd need a tunnel.)
+
+**Shippo test-mode limitations (the real constraints):**
+- **Labels are free but fake.** A `shippo_test_` token buys $0 labels → a watermarked *SAMPLE* PDF + a test tracking number. Exercises the full buy-label → archive-PDF → mark-shipped path, but the label isn't scannable.
+- **Rates need a *test-mode* carrier account.** A test token only quotes against carriers connected with test/sandbox credentials. **Canada Post is the painful one** — its dev environment issues separate development credentials and only quotes a limited set of sandbox addresses/postal codes. A **production CP connection + a test token = the "endpoint/authorization mismatch" error** (observed 2026-10-18, see below).
+- **Tracking is simulated.** Test labels never move. Use Shippo's **special test tracking numbers** with the `shippo` test carrier to fire `PRE_TRANSIT → TRANSIT → DELIVERED`, which drives `applyTrackingUpdate` → the "delivered" email.
+- **Data is siloed by mode.** Test vs live carrier accounts (and their `object_id`s) don't cross over. `SHIPPO_CARRIER_ACCOUNTS` ids must come from the same mode as `SHIPPO_API_KEY`.
+
+**Fastest way to prove the whole flow:** connect a **USPS test** carrier (works out of the box in Shippo test mode) and temporarily use **US** ship-from/ship-to addresses → get rates → buy label → simulate tracking. Validates every code path without fighting Canada Post's sandbox. For a realistic CA flow, connect Canada Post with **development** credentials in test mode and use its accepted sandbox addresses.
+
+**Code hardening (2026-10-18):**
+- `convex/shipping/shippo.ts` — on zero rates the thrown error now puts the real blocker (credential/endpoint/authorization mismatch) **first** and dedupes the harmless "not approved / unsupported option" shared-account noise, with an actionable explanation (check carrier connected + test/live mode matches the token).
+- New optional env var **`SHIPPO_CARRIER_ACCOUNTS`** (comma-separated carrier-account `object_id`s) on the Convex deployment — scopes rate requests to just those accounts so we never hit Shippo's shared accounts. Find ids via `GET https://api.goshippo.com/carrier_accounts/` (match the `test` flag to your token).

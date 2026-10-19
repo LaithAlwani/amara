@@ -8,6 +8,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { formatPrice } from "@/lib/format";
+import { errorMessage } from "@/lib/error-message";
 
 type Rate = {
   rateId: string;
@@ -33,7 +34,7 @@ export function ShipmentManager({ orderId }: { orderId: Id<"orders"> }) {
       setRates(r);
       if (r.length === 0) toast.message("No rates returned for this parcel.");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not fetch rates");
+      toast.error(errorMessage(e, "Could not fetch rates"));
     } finally {
       setLoadingRates(false);
     }
@@ -46,7 +47,7 @@ export function ShipmentManager({ orderId }: { orderId: Id<"orders"> }) {
       toast.success("Label purchased — customer notified");
       setRates(null);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not buy label");
+      toast.error(errorMessage(e, "Could not buy label"));
     } finally {
       setBuying(null);
     }

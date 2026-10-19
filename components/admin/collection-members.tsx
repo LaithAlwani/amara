@@ -1,5 +1,6 @@
 "use client";
 
+import { errorMessage } from "@/lib/error-message";
 import { useState } from "react";
 import Image from "next/image";
 import { useQuery, useMutation } from "convex/react";
@@ -38,7 +39,7 @@ export function CollectionMembers({
     try {
       await fn();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Something went wrong");
+      toast.error(errorMessage(e, "Something went wrong"));
     } finally {
       setBusy(false);
     }

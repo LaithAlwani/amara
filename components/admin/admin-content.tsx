@@ -1,5 +1,6 @@
 "use client";
 
+import { errorMessage } from "@/lib/error-message";
 import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { SpinnerGap } from "@phosphor-icons/react";
@@ -52,7 +53,7 @@ function Editor({ initial }: { initial: Content }) {
       await save(f);
       toast.success("Homepage updated");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not save");
+      toast.error(errorMessage(err, "Could not save"));
     } finally {
       setBusy(false);
     }

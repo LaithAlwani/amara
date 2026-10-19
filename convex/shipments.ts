@@ -5,17 +5,32 @@ import {
   internalMutation,
   ActionCtx,
 } from "./_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { internal, api } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { requireAdmin } from "./admin";
 import { shippoProvider } from "./shipping/shippo";
-import type { ShipAddress, Parcel } from "./shipping/types";
+import type { ShipAddress, Parcel, PurchasedLabel } from "./shipping/types";
 
 function shippoToken(): string {
   const t = process.env.SHIPPO_API_KEY;
-  if (!t) throw new Error("SHIPPO_API_KEY is not set on the deployment.");
+  if (!t)
+    throw new ConvexError(
+      "Shipping is not configured yet (missing Shippo API key). Add SHIPPO_API_KEY to the deployment.",
+    );
   return t;
+}
+
+// Optional: restrict rate requests to specific Shippo carrier account
+// object_ids (comma-separated) so we don't hit Shippo's shared accounts.
+function shippoCarrierAccounts(): string[] | undefined {
+  const raw = process.env.SHIPPO_CARRIER_ACCOUNTS;
+  if (!raw) return undefined;
+  const ids = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return ids.length > 0 ? ids : undefined;
 }
 
 // --- Admin: read a shipment --------------------------------------------------
@@ -215,7 +230,7 @@ export const applyTrackingUpdate = internalMutation({
 
 async function assertAdmin(ctx: ActionCtx) {
   const ok = await ctx.runQuery(api.admin.amIAdmin, {});
-  if (!ok) throw new Error("Not authorized.");
+  if (!ok) throw new ConvexError("You don't have access to this action.");
 }
 
 export const getOrderRates = action({
@@ -226,9 +241,17 @@ export const getOrderRates = action({
       internal.shipments.getShippingContext,
       { orderId },
     );
-    const provider = shippoProvider(shippoToken());
-    const rates = await provider.getRates({ from, to, parcel });
-    return rates.sort((a, b) => a.amountCents - b.amountCents);
+    const provider = shippoProvider(shippoToken(), shippoCarrierAccounts());
+    try {
+      const rates = await provider.getRates({ from, to, parcel });
+      return rates.sort((a, b) => a.amountCents - b.amountCents);
+    } catch (e) {
+      // Surface the carrier's explanation cleanly (ConvexError payload reaches
+      // the client in all environments; a plain Error would be redacted).
+      throw new ConvexError(
+        e instanceof Error ? e.message : "Could not fetch shipping rates.",
+      );
+    }
   },
 });
 
@@ -236,8 +259,15 @@ export const purchaseLabel = action({
   args: { orderId: v.id("orders"), rateId: v.string() },
   handler: async (ctx, { orderId, rateId }) => {
     await assertAdmin(ctx);
-    const provider = shippoProvider(shippoToken());
-    const label = await provider.buyLabel(rateId);
+    const provider = shippoProvider(shippoToken(), shippoCarrierAccounts());
+    let label: PurchasedLabel;
+    try {
+      label = await provider.buyLabel(rateId);
+    } catch (e) {
+      throw new ConvexError(
+        e instanceof Error ? e.message : "Could not buy the shipping label.",
+      );
+    }
 
     // Archive the label PDF in Convex storage.
     let labelStorageId: Id<"_storage"> | undefined;

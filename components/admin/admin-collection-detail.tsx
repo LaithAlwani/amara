@@ -1,5 +1,6 @@
 "use client";
 
+import { errorMessage } from "@/lib/error-message";
 import { useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
@@ -58,7 +59,7 @@ export function AdminCollectionDetail({
       await updateCollection({ collectionId: id, ...values });
       toast.success("Collection saved");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not save");
+      toast.error(errorMessage(e, "Could not save"));
     }
   }
 
@@ -82,7 +83,7 @@ export function AdminCollectionDetail({
       });
       toast.success("Cover updated");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Upload failed");
+      toast.error(errorMessage(e, "Upload failed"));
     } finally {
       setBusy(false);
       if (fileInput.current) fileInput.current.value = "";
@@ -153,7 +154,7 @@ export function AdminCollectionDetail({
                     setCollectionImage({ collectionId: id, storageId: null })
                       .then(() => toast.success("Cover removed"))
                       .catch((e) =>
-                        toast.error(e instanceof Error ? e.message : "Failed"),
+                        toast.error(errorMessage(e, "Failed")),
                       )
                   }
                 >
@@ -198,7 +199,7 @@ export function AdminCollectionDetail({
             toast.success("Collection deleted");
             router.push("/admin/collections");
           } catch (e) {
-            toast.error(e instanceof Error ? e.message : "Could not delete");
+            toast.error(errorMessage(e, "Could not delete"));
           }
         }}
       >

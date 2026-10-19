@@ -26,8 +26,34 @@ function shippoAddress(a: ShipAddress) {
   };
 }
 
+// Ranks a Shippo message so the real blocker (auth / endpoint / credential
+// mismatch) sorts ahead of harmless "carrier not approved / unsupported option"
+// noise from Shippo's shared accounts.
+function messageRank(line: string): number {
+  const l = line.toLowerCase();
+  if (
+    l.includes("mismatch") ||
+    l.includes("endpoint") ||
+    l.includes("authoriz") ||
+    l.includes("credential")
+  )
+    return 2;
+  if (
+    l.includes("not approved") ||
+    l.includes("doesn't support") ||
+    l.includes("shared account")
+  )
+    return 0;
+  return 1;
+}
+
 // Shippo adapter over its REST API (fetch — no SDK / Node runtime needed).
-export function shippoProvider(token: string): ShippingProvider {
+// `carrierAccounts`, when provided, scopes rate requests to those carrier
+// account object_ids so we don't query (and error on) Shippo's shared accounts.
+export function shippoProvider(
+  token: string,
+  carrierAccounts?: string[],
+): ShippingProvider {
   async function call(path: string, body: unknown) {
     const res = await fetch(`${BASE}${path}`, {
       method: "POST",
@@ -58,7 +84,7 @@ export function shippoProvider(token: string): ShippingProvider {
       to: ShipAddress;
       parcel: Parcel;
     }): Promise<ShippingRate[]> {
-      const shipment = await call("/shipments/", {
+      const body: Record<string, unknown> = {
         address_from: shippoAddress(from),
         address_to: shippoAddress(to),
         parcels: [
@@ -72,7 +98,11 @@ export function shippoProvider(token: string): ShippingProvider {
           },
         ],
         async: false,
-      });
+      };
+      if (carrierAccounts && carrierAccounts.length > 0) {
+        body.carrier_accounts = carrierAccounts;
+      }
+      const shipment = await call("/shipments/", body);
 
       type ShippoRate = {
         object_id: string;
@@ -84,18 +114,29 @@ export function shippoProvider(token: string): ShippingProvider {
       };
       const rates: ShippoRate[] = shipment.rates ?? [];
       if (rates.length === 0) {
-        // Surface Shippo's explanation (bad address, no carrier accounts, etc.)
-        const msgs = Array.isArray(shipment.messages)
+        // Surface Shippo's explanation, with the real blocker (credential /
+        // endpoint mismatch) ahead of harmless shared-account noise, deduped.
+        const raw: { text?: string; source?: string }[] = Array.isArray(
+          shipment.messages,
+        )
           ? shipment.messages
-              .map((m: { text?: string; source?: string }) =>
-                [m.source, m.text].filter(Boolean).join(": "),
-              )
-              .filter(Boolean)
-              .join(" · ")
-          : "";
+          : [];
+        const seen = new Set<string>();
+        const lines: string[] = [];
+        for (const m of raw) {
+          const line = [m.source, m.text].filter(Boolean).join(": ");
+          if (line && !seen.has(line)) {
+            seen.add(line);
+            lines.push(line);
+          }
+        }
+        lines.sort((a, b) => messageRank(b) - messageRank(a));
+        const detail = lines.join(" · ");
         throw new Error(
-          msgs ||
-            "Shippo returned no rates. Connect a carrier account (e.g. Canada Post) in your Shippo dashboard, and check the addresses.",
+          "Shippo returned no shippable rates. No connected carrier account could quote this shipment. " +
+            "Check that a carrier (e.g. Canada Post) is connected in your Shippo dashboard and that its mode " +
+            "(test vs live) matches your SHIPPO_API_KEY — a test token only works with test carrier credentials." +
+            (detail ? ` Shippo said: ${detail}` : ""),
         );
       }
       return rates.map((r) => ({

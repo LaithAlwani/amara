@@ -42,13 +42,14 @@ export default async function RootLayout({
   const accentStyle = `:root{--clay:${c.accentHex};--color-clay:${c.accentHex};--primary:${c.primaryHex};--color-primary:${c.primaryHex};--background:${c.backgroundHex};--color-background:${c.backgroundHex};--foreground:${c.foregroundHex};--color-foreground:${c.foregroundHex};}`;
 
   return (
-    <ClerkProvider>
-      <html
-        lang="en"
-        className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-      >
-        <body className="flex min-h-full flex-col">
-          <style dangerouslySetInnerHTML={{ __html: accentStyle }} />
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+    >
+      <body className="flex min-h-full flex-col">
+        <style dangerouslySetInnerHTML={{ __html: accentStyle }} />
+        {/* Clerk v7 (core 4) requires ClerkProvider inside <body>, not around <html>. */}
+        <ClerkProvider>
           <ConvexClientProvider>
             <CartProvider>
               <ConfirmProvider>
@@ -60,8 +61,8 @@ export default async function RootLayout({
               </ConfirmProvider>
             </CartProvider>
           </ConvexClientProvider>
-        </body>
-      </html>
-    </ClerkProvider>
+        </ClerkProvider>
+      </body>
+    </html>
   );
 }

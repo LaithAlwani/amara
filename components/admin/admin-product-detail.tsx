@@ -1,5 +1,6 @@
 "use client";
 
+import { errorMessage } from "@/lib/error-message";
 import Link from "next/link";
 import { useQuery, useMutation } from "convex/react";
 import { ArrowLeft, SpinnerGap } from "@phosphor-icons/react";
@@ -43,7 +44,7 @@ export function AdminProductDetail({ productId }: { productId: string }) {
       await updateProduct({ productId: id, ...values });
       toast.success("Product saved");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not save product");
+      toast.error(errorMessage(e, "Could not save product"));
     }
   }
 
