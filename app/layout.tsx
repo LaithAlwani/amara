@@ -88,8 +88,11 @@ export default async function RootLayout({
 }>) {
   const content = await fetchQuery(api.content.getSiteContent, {});
   // Runtime brand colours — override the editable tokens before paint.
+  // Scoped to LIGHT mode only: these CMS values are the light palette, so
+  // applying them unconditionally would clobber the dark-mode tokens in
+  // globals.css and leave dark mode with a broken, low-contrast mix.
   const c = content;
-  const accentStyle = `:root{--clay:${c.accentHex};--color-clay:${c.accentHex};--primary:${c.primaryHex};--color-primary:${c.primaryHex};--background:${c.backgroundHex};--color-background:${c.backgroundHex};--foreground:${c.foregroundHex};--color-foreground:${c.foregroundHex};}`;
+  const accentStyle = `@media (prefers-color-scheme: light){:root{--clay:${c.accentHex};--color-clay:${c.accentHex};--primary:${c.primaryHex};--color-primary:${c.primaryHex};--background:${c.backgroundHex};--color-background:${c.backgroundHex};--foreground:${c.foregroundHex};--color-foreground:${c.foregroundHex};}}`;
 
   return (
     <html

@@ -40,39 +40,6 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/85 backdrop-blur supports-backdrop-filter:bg-background/70">
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6">
-        {/* Mobile menu */}
-        <Sheet>
-          <SheetTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="md:hidden"
-              aria-label="Open menu"
-            >
-              <List weight="regular" className="size-5" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="w-72">
-            <SheetHeader>
-              <SheetTitle className="font-heading text-2xl tracking-tight">
-                Amara
-              </SheetTitle>
-            </SheetHeader>
-            <nav className="mt-2 flex flex-col gap-1 px-2">
-              {NAV.map((item) => (
-                <SheetClose asChild key={item.href}>
-                  <Link
-                    href={item.href}
-                    className="rounded-md px-3 py-2 text-base hover:bg-accent"
-                  >
-                    {item.label}
-                  </Link>
-                </SheetClose>
-              ))}
-            </nav>
-          </SheetContent>
-        </Sheet>
-
         {/* Wordmark */}
         <Link
           href="/"
@@ -146,6 +113,46 @@ export function SiteHeader() {
           )}
 
           <CartButton />
+
+          {/* Mobile menu — far right, slides in from the right */}
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="md:hidden"
+                aria-label="Open menu"
+              >
+                <List weight="regular" className="size-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-72">
+              <SheetHeader>
+                <SheetTitle className="flex items-center gap-2 font-heading text-2xl tracking-tight">
+                  <Image
+                    src="/logo.png"
+                    alt="Amara organic beauty logo"
+                    width={40}
+                    height={40}
+                    className="h-10 w-10 object-contain"
+                  />
+                  Amara
+                </SheetTitle>
+              </SheetHeader>
+              <nav className="mt-2 flex flex-col gap-1 px-2">
+                {NAV.map((item) => (
+                  <SheetClose asChild key={item.href}>
+                    <Link
+                      href={item.href}
+                      className="rounded-md px-3 py-2 text-base hover:bg-accent"
+                    >
+                      {item.label}
+                    </Link>
+                  </SheetClose>
+                ))}
+              </nav>
+            </SheetContent>
+          </Sheet>
         </div>
       </div>
     </header>
