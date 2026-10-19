@@ -1,5 +1,5 @@
 import { query, mutation, QueryCtx } from "./_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import { requireAdmin } from "./admin";
 
@@ -91,7 +91,7 @@ async function assertSlugFree(
     .withIndex("by_slug", (q) => q.eq("slug", slug))
     .unique();
   if (existing && existing._id !== exclude) {
-    throw new Error(`Slug "${slug}" is already in use.`);
+    throw new ConvexError(`Slug "${slug}" is already in use.`);
   }
 }
 
@@ -108,7 +108,7 @@ export const createProduct = mutation({
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
     const slug = args.slug.trim().toLowerCase();
-    if (!slug) throw new Error("A slug is required.");
+    if (!slug) throw new ConvexError("A slug is required.");
     await assertSlugFree(ctx, slug);
     // Images are added on the edit screen via uploads (imageStorageIds).
     const productId = await ctx.db.insert("products", {
@@ -141,7 +141,7 @@ export const updateProduct = mutation({
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
     const slug = args.slug.trim().toLowerCase();
-    if (!slug) throw new Error("A slug is required.");
+    if (!slug) throw new ConvexError("A slug is required.");
     await assertSlugFree(ctx, slug, args.productId);
     await ctx.db.patch("products", args.productId, {
       name: args.name.trim(),
@@ -178,7 +178,7 @@ export const setProductImages = mutation({
   handler: async (ctx, { productId, storageIds }) => {
     await requireAdmin(ctx);
     const product = await ctx.db.get("products", productId);
-    if (!product) throw new Error("Product not found.");
+    if (!product) throw new ConvexError("Product not found.");
     const previous = product.imageStorageIds ?? [];
     for (const id of previous) {
       if (!storageIds.includes(id)) await ctx.storage.delete(id);
@@ -218,7 +218,7 @@ export const createVariant = mutation({
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
     const product = await ctx.db.get("products", args.productId);
-    if (!product) throw new Error("Product not found.");
+    if (!product) throw new ConvexError("Product not found.");
     const { productId, ...rest } = args;
     const variantId = await ctx.db.insert("productVariants", {
       productId,

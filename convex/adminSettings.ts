@@ -1,5 +1,5 @@
 import { query, mutation, QueryCtx } from "./_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { requireAdmin } from "./admin";
 
 async function getSettings(ctx: QueryCtx) {
@@ -7,7 +7,7 @@ async function getSettings(ctx: QueryCtx) {
     .query("settings")
     .withIndex("by_key", (q) => q.eq("key", "global"))
     .unique();
-  if (!s) throw new Error("Store settings are not configured.");
+  if (!s) throw new ConvexError("Store settings are not configured.");
   return s;
 }
 

@@ -4,11 +4,11 @@ import Stripe from "stripe";
 import { action, internalAction, ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 
 function stripeClient(): Stripe {
   const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) throw new Error("STRIPE_SECRET_KEY is not set on the deployment.");
+  if (!key) throw new ConvexError("STRIPE_SECRET_KEY is not set on the deployment.");
   return new Stripe(key);
 }
 
@@ -75,8 +75,8 @@ export const createCheckoutSession = action({
     const data = await ctx.runQuery(internal.orders.getOrderForStripe, {
       orderId,
     });
-    if (!data) throw new Error("Order not found.");
-    if (data.status !== "pending") throw new Error("Order is not payable.");
+    if (!data) throw new ConvexError("Order not found.");
+    if (data.status !== "pending") throw new ConvexError("Order is not payable.");
 
     // If the whole order is covered (gift card / points / code), there is
     // nothing to charge — finalize it directly and skip Stripe.
@@ -166,7 +166,7 @@ export const createCheckoutSession = action({
       sessionId: session.id,
     });
 
-    if (!session.url) throw new Error("Stripe did not return a checkout URL.");
+    if (!session.url) throw new ConvexError("Stripe did not return a checkout URL.");
     return { url: session.url };
   },
 });
@@ -195,7 +195,7 @@ export const createCartSubscriptionCheckout = action({
       internal.subscriptions.getUserForCheckout,
       {},
     );
-    if (!user) throw new Error("Please sign in to subscribe.");
+    if (!user) throw new ConvexError("Please sign in to subscribe.");
     const ic = [1, 2, 3].includes(intervalCount) ? intervalCount : 1;
     const stripe = stripeClient();
 
@@ -268,7 +268,7 @@ export const createCartSubscriptionCheckout = action({
       success_url: `${origin}/account/subscriptions?new=1`,
       cancel_url: `${origin}/checkout`,
     });
-    if (!session.url) throw new Error("Stripe did not return a checkout URL.");
+    if (!session.url) throw new ConvexError("Stripe did not return a checkout URL.");
     return { url: session.url };
   },
 });
@@ -283,7 +283,7 @@ async function ownedStripeSubId(
     internal.subscriptions.getOwnedSubscription,
     { subscriptionId },
   );
-  if (!owned) throw new Error("Subscription not found.");
+  if (!owned) throw new ConvexError("Subscription not found.");
   return owned.stripeSubscriptionId;
 }
 
@@ -344,7 +344,7 @@ export const createGiftCardCheckout = action({
   handler: async (ctx, args) => {
     const amount = Math.round(args.amountCents);
     if (amount < 1000 || amount > 50000) {
-      throw new Error("Gift cards are between $10 and $500.");
+      throw new ConvexError("Gift cards are between $10 and $500.");
     }
     const stripe = stripeClient();
     const session = await stripe.checkout.sessions.create({
@@ -370,7 +370,7 @@ export const createGiftCardCheckout = action({
       success_url: `${args.origin}/gift-cards/success`,
       cancel_url: `${args.origin}/gift-cards`,
     });
-    if (!session.url) throw new Error("Stripe did not return a checkout URL.");
+    if (!session.url) throw new ConvexError("Stripe did not return a checkout URL.");
     return { url: session.url };
   },
 });
@@ -380,7 +380,7 @@ export const handleStripeWebhook = internalAction({
   args: { payload: v.string(), signature: v.string() },
   handler: async (ctx, { payload, signature }) => {
     const secret = process.env.STRIPE_WEBHOOK_SECRET;
-    if (!secret) throw new Error("STRIPE_WEBHOOK_SECRET is not set.");
+    if (!secret) throw new ConvexError("STRIPE_WEBHOOK_SECRET is not set.");
     const stripe = stripeClient();
 
     let event: Stripe.Event;

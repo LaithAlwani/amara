@@ -1,5 +1,5 @@
 import { query, mutation, QueryCtx } from "./_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import { requireAdmin } from "./admin";
 import { collectionImage, primaryImage } from "./catalog";
@@ -23,7 +23,7 @@ async function assertSlugFree(
     .withIndex("by_slug", (q) => q.eq("slug", slug))
     .unique();
   if (existing && existing._id !== exclude) {
-    throw new Error(`Slug "${slug}" is already in use.`);
+    throw new ConvexError(`Slug "${slug}" is already in use.`);
   }
 }
 
@@ -104,7 +104,7 @@ export const createCollection = mutation({
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
     const slug = args.slug.trim().toLowerCase();
-    if (!slug) throw new Error("A slug is required.");
+    if (!slug) throw new ConvexError("A slug is required.");
     await assertSlugFree(ctx, slug);
     const collectionId = await ctx.db.insert("collections", {
       title: args.title.trim(),
@@ -130,7 +130,7 @@ export const updateCollection = mutation({
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
     const slug = args.slug.trim().toLowerCase();
-    if (!slug) throw new Error("A slug is required.");
+    if (!slug) throw new ConvexError("A slug is required.");
     await assertSlugFree(ctx, slug, args.collectionId);
     await ctx.db.patch("collections", args.collectionId, {
       title: args.title.trim(),
@@ -229,7 +229,7 @@ export const setCollectionImage = mutation({
   handler: async (ctx, { collectionId, storageId }) => {
     await requireAdmin(ctx);
     const collection = await ctx.db.get("collections", collectionId);
-    if (!collection) throw new Error("Collection not found.");
+    if (!collection) throw new ConvexError("Collection not found.");
     if (
       collection.imageStorageId &&
       collection.imageStorageId !== storageId

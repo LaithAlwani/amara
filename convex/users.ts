@@ -5,7 +5,7 @@ import {
   MutationCtx,
   QueryCtx,
 } from "./_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { Doc, Id } from "./_generated/dataModel";
 
 // Resolve the local `users` row for the authenticated identity, if any.
@@ -59,7 +59,7 @@ export const getOrCreateCurrentUser = mutation({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    if (!identity) throw new ConvexError("Not authenticated");
 
     const email = (identity.email ?? "").toLowerCase();
     const emailVerified = identity.emailVerified === true;
@@ -108,7 +108,7 @@ export const setUserRole = internalMutation({
       .query("users")
       .withIndex("by_email", (q) => q.eq("email", email.toLowerCase()))
       .unique();
-    if (!user) throw new Error(`No user with email ${email}`);
+    if (!user) throw new ConvexError(`No user with email ${email}`);
     await ctx.db.patch("users", user._id, { role });
     return { ok: true, userId: user._id, role };
   },

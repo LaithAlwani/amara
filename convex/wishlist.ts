@@ -1,5 +1,5 @@
 import { query, mutation, QueryCtx, MutationCtx } from "./_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { Doc, Id } from "./_generated/dataModel";
 import { toProductCard } from "./catalog";
 
@@ -37,7 +37,7 @@ export const toggleWishlist = mutation({
   args: { productId: v.id("products") },
   handler: async (ctx, { productId }) => {
     const user = await currentUser(ctx);
-    if (!user) throw new Error("Sign in to save favorites.");
+    if (!user) throw new ConvexError("Sign in to save favorites.");
 
     const existing = await ctx.db
       .query("wishlists")

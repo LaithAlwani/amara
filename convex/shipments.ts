@@ -65,15 +65,15 @@ export const getShippingContext = internalQuery({
   args: { orderId: v.id("orders") },
   handler: async (ctx, { orderId }) => {
     const order = await ctx.db.get("orders", orderId);
-    if (!order) throw new Error("Order not found.");
+    if (!order) throw new ConvexError("Order not found.");
     if (order.fulfillmentMethod !== "ship" || !order.shippingAddress) {
-      throw new Error("This order is not a shipping order.");
+      throw new ConvexError("This order is not a shipping order.");
     }
     const settings = await ctx.db
       .query("settings")
       .withIndex("by_key", (q) => q.eq("key", "global"))
       .unique();
-    if (!settings) throw new Error("Store settings are not configured.");
+    if (!settings) throw new ConvexError("Store settings are not configured.");
 
     const items = await ctx.db
       .query("orderItems")

@@ -1,5 +1,5 @@
 import { query, mutation, QueryCtx, MutationCtx } from "./_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 
@@ -10,14 +10,14 @@ export async function requireAdmin(
   ctx: QueryCtx | MutationCtx,
 ): Promise<Doc<"users">> {
   const identity = await ctx.auth.getUserIdentity();
-  if (!identity) throw new Error("Not authenticated");
+  if (!identity) throw new ConvexError("Not authenticated");
   const user = await ctx.db
     .query("users")
     .withIndex("by_tokenIdentifier", (q) =>
       q.eq("tokenIdentifier", identity.tokenIdentifier),
     )
     .unique();
-  if (!user || user.role !== "admin") throw new Error("Not authorized");
+  if (!user || user.role !== "admin") throw new ConvexError("Not authorized");
   return user;
 }
 
@@ -140,9 +140,9 @@ async function loadPaidOrder(
 ): Promise<Doc<"orders">> {
   await requireAdmin(ctx);
   const order = await ctx.db.get("orders", orderId);
-  if (!order) throw new Error("Order not found.");
+  if (!order) throw new ConvexError("Order not found.");
   if (order.status !== "paid" && order.status !== "fulfilled") {
-    throw new Error("Only paid orders can be fulfilled.");
+    throw new ConvexError("Only paid orders can be fulfilled.");
   }
   return order;
 }
@@ -153,7 +153,7 @@ export const markReadyForPickup = mutation({
   handler: async (ctx, { orderId }) => {
     const order = await loadPaidOrder(ctx, orderId);
     if (order.fulfillmentMethod !== "pickup") {
-      throw new Error("This order is not a pickup order.");
+      throw new ConvexError("This order is not a pickup order.");
     }
     await ctx.db.patch("orders", orderId, {
       fulfillmentStatus: "ready_for_pickup",
@@ -172,7 +172,7 @@ export const markPickedUp = mutation({
   handler: async (ctx, { orderId }) => {
     const order = await loadPaidOrder(ctx, orderId);
     if (order.fulfillmentMethod !== "pickup") {
-      throw new Error("This order is not a pickup order.");
+      throw new ConvexError("This order is not a pickup order.");
     }
     await ctx.db.patch("orders", orderId, {
       fulfillmentStatus: "picked_up",
@@ -193,7 +193,7 @@ export const markShipped = mutation({
   handler: async (ctx, { orderId }) => {
     const order = await loadPaidOrder(ctx, orderId);
     if (order.fulfillmentMethod !== "ship") {
-      throw new Error("This order is not a shipping order.");
+      throw new ConvexError("This order is not a shipping order.");
     }
     await ctx.db.patch("orders", orderId, {
       fulfillmentStatus: "shipped",

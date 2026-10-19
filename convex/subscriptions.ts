@@ -5,7 +5,7 @@ import {
   QueryCtx,
   MutationCtx,
 } from "./_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { Doc, Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { findOpenCart } from "./cart";
@@ -35,7 +35,7 @@ async function getSettings(ctx: QueryCtx) {
     .query("settings")
     .withIndex("by_key", (q) => q.eq("key", "global"))
     .unique();
-  if (!s) throw new Error("Store settings are not configured.");
+  if (!s) throw new ConvexError("Store settings are not configured.");
   return s;
 }
 
@@ -215,15 +215,15 @@ export const createSubscriptionDraft = internalMutation({
   },
   handler: async (ctx, args) => {
     const user = await userByIdentity(ctx);
-    if (!user) throw new Error("Please sign in to subscribe.");
+    if (!user) throw new ConvexError("Please sign in to subscribe.");
 
     const cart = await findOpenCart(ctx, args.anonId);
-    if (!cart) throw new Error("Your cart is empty.");
+    if (!cart) throw new ConvexError("Your cart is empty.");
     const cartItems = await ctx.db
       .query("cartItems")
       .withIndex("by_cart", (q) => q.eq("cartId", cart._id))
       .take(200);
-    if (cartItems.length === 0) throw new Error("Your cart is empty.");
+    if (cartItems.length === 0) throw new ConvexError("Your cart is empty.");
 
     const settings = await getSettings(ctx);
     const percent = settings.subscriptionDiscountPercent ?? 0;
@@ -245,7 +245,7 @@ export const createSubscriptionDraft = internalMutation({
       const product = await ctx.db.get("products", ci.productId);
       if (!variant || !product) continue;
       if (!variant.active || variant.inventoryQty < ci.quantity) {
-        throw new Error(`${product.name} is not available in that quantity.`);
+        throw new ConvexError(`${product.name} is not available in that quantity.`);
       }
       const unit = discountedUnit(variant.priceCents, percent);
       subtotalCents += unit * ci.quantity;
@@ -260,7 +260,7 @@ export const createSubscriptionDraft = internalMutation({
         weightGramsSnapshot: variant.weightGrams,
       });
     }
-    if (snaps.length === 0) throw new Error("Your cart is empty.");
+    if (snaps.length === 0) throw new ConvexError("Your cart is empty.");
 
     const shippingCents = boxShipping(subtotalCents, settings);
     const taxCents = settings.taxRatePpm

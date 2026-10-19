@@ -1,5 +1,5 @@
 import { query, mutation, QueryCtx, MutationCtx } from "./_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { Doc, Id } from "./_generated/dataModel";
 import { requireAdmin } from "./admin";
 
@@ -130,13 +130,13 @@ export const setSubscriptionDiscount = mutation({
   handler: async (ctx, { percent }) => {
     await requireAdmin(ctx);
     if (percent < 0 || percent > 90) {
-      throw new Error("Percent must be between 0 and 90.");
+      throw new ConvexError("Percent must be between 0 and 90.");
     }
     const settings = await ctx.db
       .query("settings")
       .withIndex("by_key", (q) => q.eq("key", "global"))
       .unique();
-    if (!settings) throw new Error("Settings not configured.");
+    if (!settings) throw new ConvexError("Settings not configured.");
     await ctx.db.patch("settings", settings._id, {
       subscriptionDiscountPercent: Math.round(percent),
     });
@@ -162,12 +162,12 @@ export const setFreeShipThreshold = mutation({
   args: { cents: v.number() },
   handler: async (ctx, { cents }) => {
     await requireAdmin(ctx);
-    if (cents < 0) throw new Error("Threshold can't be negative.");
+    if (cents < 0) throw new ConvexError("Threshold can't be negative.");
     const settings = await ctx.db
       .query("settings")
       .withIndex("by_key", (q) => q.eq("key", "global"))
       .unique();
-    if (!settings) throw new Error("Settings not configured.");
+    if (!settings) throw new ConvexError("Settings not configured.");
     await ctx.db.patch("settings", settings._id, {
       freeShippingThresholdCents: cents > 0 ? Math.round(cents) : undefined,
     });
@@ -187,16 +187,16 @@ export const createCode = mutation({
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
     const code = normalizeCode(args.code);
-    if (!code) throw new Error("A code is required.");
-    if (args.value <= 0) throw new Error("Value must be greater than zero.");
+    if (!code) throw new ConvexError("A code is required.");
+    if (args.value <= 0) throw new ConvexError("Value must be greater than zero.");
     if (args.kind === "percent" && args.value > 100) {
-      throw new Error("Percent cannot exceed 100.");
+      throw new ConvexError("Percent cannot exceed 100.");
     }
     const existing = await ctx.db
       .query("discountCodes")
       .withIndex("by_code", (q) => q.eq("code", code))
       .unique();
-    if (existing) throw new Error(`Code "${code}" already exists.`);
+    if (existing) throw new ConvexError(`Code "${code}" already exists.`);
 
     await ctx.db.insert("discountCodes", {
       code,

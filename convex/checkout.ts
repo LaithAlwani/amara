@@ -1,5 +1,5 @@
 import { mutation, query, QueryCtx } from "./_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { Doc, Id } from "./_generated/dataModel";
 import { findOpenCart } from "./cart";
 import { primaryImage } from "./catalog";
@@ -25,7 +25,7 @@ async function getSettings(ctx: QueryCtx) {
     .query("settings")
     .withIndex("by_key", (q) => q.eq("key", "global"))
     .unique();
-  if (!settings) throw new Error("Store settings are not configured.");
+  if (!settings) throw new ConvexError("Store settings are not configured.");
   return settings;
 }
 
@@ -262,19 +262,19 @@ export const createDraftOrder = mutation({
   handler: async (ctx, args) => {
     const email = args.email.trim().toLowerCase();
     if (!email || !email.includes("@")) {
-      throw new Error("A valid email is required.");
+      throw new ConvexError("A valid email is required.");
     }
 
     const cart = await findOpenCart(ctx, args.anonId);
-    if (!cart) throw new Error("Your cart is empty.");
+    if (!cart) throw new ConvexError("Your cart is empty.");
     const lines = await loadLines(ctx, cart._id);
-    if (lines.length === 0) throw new Error("Your cart is empty.");
+    if (lines.length === 0) throw new ConvexError("Your cart is empty.");
 
     // Re-validate inventory and recompute the subtotal from live prices.
     let subtotalCents = 0;
     for (const { variant, product, item } of lines) {
       if (!variant.active || variant.inventoryQty < item.quantity) {
-        throw new Error(`${product.name} is no longer available in that quantity.`);
+        throw new ConvexError(`${product.name} is no longer available in that quantity.`);
       }
       subtotalCents += variant.priceCents * item.quantity;
     }
@@ -302,7 +302,7 @@ export const createDraftOrder = mutation({
       userId,
       email,
     });
-    if (discount.error) throw new Error(discount.error);
+    if (discount.error) throw new ConvexError(discount.error);
 
     // Loyalty redemption (1 pt = 1¢), capped by balance and remaining subtotal.
     const codeDiscount = discount.discountCents;
@@ -328,13 +328,13 @@ export const createDraftOrder = mutation({
     let pickupLocationId: Id<"pickupLocations"> | undefined;
     let shippingAddress = undefined;
     if (args.fulfillmentMethod === "ship") {
-      if (!args.shippingAddress) throw new Error("A shipping address is required.");
+      if (!args.shippingAddress) throw new ConvexError("A shipping address is required.");
       shippingAddress = args.shippingAddress;
     } else {
       const pickup = args.pickupLocationId
         ? await ctx.db.get("pickupLocations", args.pickupLocationId)
         : await getActivePickup(ctx);
-      if (!pickup || !pickup.active) throw new Error("Pickup is unavailable.");
+      if (!pickup || !pickup.active) throw new ConvexError("Pickup is unavailable.");
       pickupLocationId = pickup._id;
     }
 

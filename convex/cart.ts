@@ -1,5 +1,5 @@
 import { mutation, query, MutationCtx, QueryCtx } from "./_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { Doc, Id } from "./_generated/dataModel";
 import { primaryImage } from "./catalog";
 
@@ -56,10 +56,10 @@ async function getOrCreateOpenCart(
       status: "open",
     });
   } else {
-    throw new Error("No cart owner: sign in or provide an anonId.");
+    throw new ConvexError("No cart owner: sign in or provide an anonId.");
   }
   const created = await ctx.db.get("carts", id);
-  if (!created) throw new Error("Failed to create cart.");
+  if (!created) throw new ConvexError("Failed to create cart.");
   return created;
 }
 
@@ -122,7 +122,7 @@ export const addItem = mutation({
   handler: async (ctx, { variantId, quantity, anonId }) => {
     const qty = Math.max(1, Math.floor(quantity ?? 1));
     const variant = await ctx.db.get("productVariants", variantId);
-    if (!variant || !variant.active) throw new Error("Variant unavailable.");
+    if (!variant || !variant.active) throw new ConvexError("Variant unavailable.");
 
     const cart = await getOrCreateOpenCart(ctx, anonId);
 
@@ -135,7 +135,7 @@ export const addItem = mutation({
 
     const desired = (existing?.quantity ?? 0) + qty;
     const clamped = Math.min(desired, Math.max(0, variant.inventoryQty));
-    if (clamped <= 0) throw new Error("Out of stock.");
+    if (clamped <= 0) throw new ConvexError("Out of stock.");
 
     if (existing) {
       await ctx.db.patch("cartItems", existing._id, {
@@ -162,9 +162,9 @@ async function ownedCartItem(
   anonId?: string,
 ): Promise<Doc<"cartItems">> {
   const cart = await findOpenCart(ctx, anonId);
-  if (!cart) throw new Error("No cart.");
+  if (!cart) throw new ConvexError("No cart.");
   const item = await ctx.db.get("cartItems", cartItemId);
-  if (!item || item.cartId !== cart._id) throw new Error("Item not in cart.");
+  if (!item || item.cartId !== cart._id) throw new ConvexError("Item not in cart.");
   return item;
 }
 
