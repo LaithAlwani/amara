@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useUser, useClerk } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { MagnifyingGlass, User, List, SignOut } from "@phosphor-icons/react";
+import { User, List, SignOut } from "@phosphor-icons/react";
 import { CartButton } from "@/components/cart/cart-button";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -58,7 +59,7 @@ export function SiteHeader() {
               </SheetTitle>
             </SheetHeader>
             <nav className="mt-2 flex flex-col gap-1 px-2">
-              {[...NAV, { href: "/search", label: "Search" }].map((item) => (
+              {NAV.map((item) => (
                 <SheetClose asChild key={item.href}>
                   <Link
                     href={item.href}
@@ -75,9 +76,16 @@ export function SiteHeader() {
         {/* Wordmark */}
         <Link
           href="/"
-          className="font-heading text-2xl font-semibold tracking-tight text-foreground"
+          className="flex items-center gap-2 font-heading text-2xl font-semibold tracking-tight text-foreground"
         >
-          Amara
+          <Image
+            src="/logo.png"
+            alt="Amara organic beauty logo"
+            width={64}
+            height={64}
+            priority
+            className="h-16 w-16 object-contain"
+          />
         </Link>
 
         {/* Primary nav (single line, desktop) */}
@@ -102,12 +110,6 @@ export function SiteHeader() {
 
         {/* Utility nav */}
         <div className="ml-auto flex items-center gap-1">
-          <Button variant="ghost" size="icon" asChild aria-label="Search">
-            <Link href="/search">
-              <MagnifyingGlass weight="regular" className="size-5" />
-            </Link>
-          </Button>
-
           {isSignedIn ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

@@ -54,18 +54,3 @@ export const getProductBySlug = query({
   },
 });
 
-// Instant search over product names (active only).
-export const searchProducts = query({
-  args: { q: v.string() },
-  handler: async (ctx, { q }) => {
-    const term = q.trim();
-    if (!term) return [];
-    const results = await ctx.db
-      .query("products")
-      .withSearchIndex("search_name", (s) =>
-        s.search("name", term).eq("status", "active"),
-      )
-      .take(20);
-    return Promise.all(results.map((p) => toProductCard(ctx, p)));
-  },
-});

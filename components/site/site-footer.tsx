@@ -14,7 +14,6 @@ const COLUMNS = [
     links: [
       { href: "/account/orders", label: "Track an order" },
       { href: "/cart", label: "Your cart" },
-      { href: "/search", label: "Search" },
     ],
   },
 ];
@@ -53,7 +52,15 @@ export function SiteFooter() {
       <div className="border-t border-border">
         <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <p>Copyright {new Date().getFullYear()} Amara Beauty Co.</p>
-          <p>Ottawa, Ontario, Canada</p>
+          <div className="flex items-center gap-4">
+            <Link href="/privacy" className="transition-colors hover:text-foreground">
+              Privacy
+            </Link>
+            <Link href="/terms" className="transition-colors hover:text-foreground">
+              Terms
+            </Link>
+            <span>Ottawa, Ontario, Canada</span>
+          </div>
         </div>
       </div>
     </footer>
