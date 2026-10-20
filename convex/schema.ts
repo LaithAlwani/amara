@@ -327,6 +327,7 @@ export default defineSchema({
   // Singleton (key "home") of admin-editable homepage copy + brand accent.
   siteContent: defineTable({
     key: v.literal("home"),
+    heroImageStorageId: v.optional(v.id("_storage")), // admin-uploaded hero image
     heroEyebrow: v.string(),
     heroTitle: v.string(),
     heroSubtitle: v.string(),

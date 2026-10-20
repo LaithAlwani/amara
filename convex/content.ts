@@ -27,11 +27,15 @@ export const getSiteContent = query({
       .query("siteContent")
       .withIndex("by_key", (q) => q.eq("key", "home"))
       .unique();
-    if (!row) return DEFAULTS;
-    const { _id, _creationTime, key, ...content } = row;
+    const heroImageUrl = row?.heroImageStorageId
+      ? await ctx.storage.getUrl(row.heroImageStorageId)
+      : null;
+    if (!row) return { ...DEFAULTS, heroImageUrl };
+    const { _id, _creationTime, key, heroImageStorageId, ...content } = row;
     void _id;
     void _creationTime;
     void key;
+    void heroImageStorageId;
     // Merge over defaults so newly-added fields (e.g. primaryHex) are filled.
     return {
       ...DEFAULTS,
@@ -39,7 +43,39 @@ export const getSiteContent = query({
       primaryHex: content.primaryHex ?? DEFAULTS.primaryHex,
       backgroundHex: content.backgroundHex ?? DEFAULTS.backgroundHex,
       foregroundHex: content.foregroundHex ?? DEFAULTS.foregroundHex,
+      heroImageUrl,
     };
+  },
+});
+
+// Set (or clear) the homepage hero image. Deletes the previous blob so storage
+// never leaks. Pass no storageId to remove the current image.
+export const setHeroImage = mutation({
+  args: { storageId: v.optional(v.id("_storage")) },
+  handler: async (ctx, { storageId }) => {
+    await requireAdmin(ctx);
+    const existing = await ctx.db
+      .query("siteContent")
+      .withIndex("by_key", (q) => q.eq("key", "home"))
+      .unique();
+
+    const prev = existing?.heroImageStorageId;
+    if (prev && prev !== storageId) {
+      await ctx.storage.delete(prev);
+    }
+
+    if (existing) {
+      await ctx.db.patch("siteContent", existing._id, {
+        heroImageStorageId: storageId,
+      });
+    } else {
+      await ctx.db.insert("siteContent", {
+        key: "home",
+        heroImageStorageId: storageId,
+        ...DEFAULTS,
+      });
+    }
+    return { ok: true };
   },
 });
 

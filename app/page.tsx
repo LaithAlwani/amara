@@ -39,7 +39,10 @@ export default async function Home() {
         </div>
         <div className="relative aspect-4/5 max-h-[34rem] w-full overflow-hidden rounded-[2rem] border border-border bg-secondary">
           <Image
-            src="https://picsum.photos/seed/amara-hero/1200/1500"
+            src={
+              content.heroImageUrl ??
+              "https://picsum.photos/seed/amara-hero/1200/1500"
+            }
             alt="Amara botanical skincare arranged on stone"
             fill
             priority
