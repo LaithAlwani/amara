@@ -29,10 +29,16 @@ async function loadVariants(ctx: QueryCtx, productId: Id<"products">) {
 
 // All products (any status) with stock/price rollups for the admin list.
 export const listProducts = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { search: v.optional(v.string()) },
+  handler: async (ctx, { search }) => {
     await requireAdmin(ctx);
-    const products = await ctx.db.query("products").order("desc").take(200);
+    const term = search?.trim();
+    const products = term
+      ? await ctx.db
+          .query("products")
+          .withSearchIndex("search_name", (q) => q.search("name", term))
+          .take(200)
+      : await ctx.db.query("products").order("desc").take(200);
 
     return await Promise.all(
       products.map(async (p) => {

@@ -6,6 +6,7 @@ import { useQuery } from "convex/react";
 import { SpinnerGap } from "@phosphor-icons/react";
 import { api } from "@/convex/_generated/api";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { formatPrice } from "@/lib/format";
 import {
@@ -31,9 +32,15 @@ const FILTERS: Filter[] = [
 
 export function AdminOrders() {
   const [active, setActive] = useState(0);
+  const [search, setSearch] = useState("");
+  const [coupon, setCoupon] = useState("");
+  const codes = useQuery(api.discounts.listCodes);
   const orders = useQuery(api.admin.listOrders, {
     status: FILTERS[active].status,
+    search: search.trim() || undefined,
+    discountCode: coupon || undefined,
   });
+  const filtering = Boolean(search.trim() || coupon);
 
   return (
     <div>
@@ -58,13 +65,37 @@ export function AdminOrders() {
         ))}
       </div>
 
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search order number or customer email…"
+          className="max-w-sm"
+          aria-label="Search orders"
+        />
+        <select
+          value={coupon}
+          onChange={(e) => setCoupon(e.target.value)}
+          aria-label="Filter by coupon"
+          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+        >
+          <option value="">All coupons</option>
+          {codes?.map((c) => (
+            <option key={c._id} value={c.code}>
+              {c.code}
+            </option>
+          ))}
+        </select>
+      </div>
+
       {orders === undefined ? (
         <div className="flex justify-center py-20 text-muted-foreground">
           <SpinnerGap className="size-6 animate-spin" />
         </div>
       ) : orders.length === 0 ? (
         <p className="py-20 text-center text-muted-foreground">
-          No orders here yet.
+          {filtering ? "No orders match these filters." : "No orders here yet."}
         </p>
       ) : (
         <div className="mt-4 overflow-x-auto rounded-xl border border-border">
@@ -77,6 +108,9 @@ export function AdminOrders() {
                   Customer
                 </th>
                 <th className="px-4 py-2.5 font-medium">Method</th>
+                <th className="hidden px-4 py-2.5 font-medium md:table-cell">
+                  Coupon
+                </th>
                 <th className="px-4 py-2.5 font-medium">Status</th>
                 <th className="px-4 py-2.5 text-right font-medium">Total</th>
               </tr>
@@ -105,6 +139,9 @@ export function AdminOrders() {
                     </td>
                     <td className="px-4 py-3 capitalize text-muted-foreground">
                       {o.fulfillmentMethod}
+                    </td>
+                    <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">
+                      {o.discountCode ?? "—"}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-0.5">

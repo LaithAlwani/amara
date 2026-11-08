@@ -46,22 +46,63 @@ const orderStatusValidator = v.union(
   v.literal("refunded"),
 );
 
-// Admin order list, newest first. Optional status filter (uses by_status).
+// Admin order list, newest first. Optional filters: status, coupon code, and a
+// free-text search (order number via search index, or email prefix when the
+// text contains "@"). The most selective source is read from an index and the
+// rest are applied in memory over a bounded result set.
 // Excludes pending drafts by default — they're not real orders to act on.
 export const listOrders = query({
-  args: { status: v.optional(orderStatusValidator) },
-  handler: async (ctx, { status }) => {
+  args: {
+    status: v.optional(orderStatusValidator),
+    discountCode: v.optional(v.string()),
+    search: v.optional(v.string()),
+  },
+  handler: async (ctx, { status, discountCode, search }) => {
     await requireAdmin(ctx);
 
-    const orders = status
-      ? await ctx.db
-          .query("orders")
-          .withIndex("by_status", (q) => q.eq("status", status))
-          .order("desc")
-          .take(200)
-      : (
-          await ctx.db.query("orders").order("desc").take(200)
-        ).filter((o) => o.status !== "pending");
+    const term = search?.trim() ?? "";
+    const code = discountCode?.trim().toUpperCase() || undefined;
+
+    let orders: Doc<"orders">[];
+    if (term.includes("@")) {
+      const email = term.toLowerCase();
+      orders = await ctx.db
+        .query("orders")
+        .withIndex("by_email", (q) =>
+          q.gte("email", email).lt("email", email + "￿"),
+        )
+        .take(200);
+    } else if (term) {
+      orders = await ctx.db
+        .query("orders")
+        .withSearchIndex("search_orderNumber", (q) => {
+          let s = q.search("orderNumber", term);
+          if (status) s = s.eq("status", status);
+          if (code) s = s.eq("discountCode", code);
+          return s;
+        })
+        .take(200);
+    } else if (code) {
+      orders = await ctx.db
+        .query("orders")
+        .withIndex("by_discountCode", (q) => q.eq("discountCode", code))
+        .order("desc")
+        .take(200);
+    } else if (status) {
+      orders = await ctx.db
+        .query("orders")
+        .withIndex("by_status", (q) => q.eq("status", status))
+        .order("desc")
+        .take(200);
+    } else {
+      orders = await ctx.db.query("orders").order("desc").take(200);
+    }
+
+    orders = orders.filter(
+      (o) =>
+        (status ? o.status === status : o.status !== "pending") &&
+        (!code || o.discountCode === code),
+    );
 
     return orders.map((o) => ({
       _id: o._id,
@@ -72,6 +113,7 @@ export const listOrders = query({
       fulfillmentMethod: o.fulfillmentMethod,
       fulfillmentStatus: o.fulfillmentStatus,
       totalCents: o.totalCents,
+      discountCode: o.discountCode ?? null,
     }));
   },
 });

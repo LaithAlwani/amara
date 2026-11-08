@@ -177,7 +177,12 @@ export default defineSchema({
     .index("by_squareOrderId", ["squareOrderId"])
     .index("by_stripeCheckoutSessionId", ["stripeCheckoutSessionId"])
     .index("by_stripeInvoiceId", ["stripeInvoiceId"])
-    .index("by_status", ["status"]),
+    .index("by_status", ["status"])
+    .index("by_discountCode", ["discountCode"])
+    .searchIndex("search_orderNumber", {
+      searchField: "orderNumber",
+      filterFields: ["status", "discountCode"],
+    }),
 
   // --- Subscriptions (Subscribe & Save box, via Stripe Billing) -----------
   // A subscription is a recurring "box" of one or more items (subscriptionItems).

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useQuery } from "convex/react";
@@ -7,11 +8,15 @@ import { Plus, SpinnerGap, Warning } from "@phosphor-icons/react";
 import { api } from "@/convex/_generated/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { formatPrice } from "@/lib/format";
 import { productStatusBadge } from "./product-status";
 
 export function AdminProducts() {
-  const products = useQuery(api.adminCatalog.listProducts);
+  const [search, setSearch] = useState("");
+  const products = useQuery(api.adminCatalog.listProducts, {
+    search: search.trim() || undefined,
+  });
 
   return (
     <div>
@@ -26,13 +31,24 @@ export function AdminProducts() {
         </Button>
       </div>
 
+      <Input
+        type="search"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search products by name…"
+        className="mt-5 max-w-sm"
+        aria-label="Search products"
+      />
+
       {products === undefined ? (
         <div className="flex justify-center py-20 text-muted-foreground">
           <SpinnerGap className="size-6 animate-spin" />
         </div>
       ) : products.length === 0 ? (
         <p className="py-20 text-center text-muted-foreground">
-          No products yet. Create your first one.
+          {search.trim()
+            ? "No products match your search."
+            : "No products yet. Create your first one."}
         </p>
       ) : (
         <div className="mt-6 overflow-x-auto rounded-xl border border-border">
