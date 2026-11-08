@@ -24,7 +24,7 @@ export function CollectionMembers({
   collectionId: Id<"collections">;
   members: Member[];
 }) {
-  const allProducts = useQuery(api.adminCatalog.listProducts);
+  const allProducts = useQuery(api.adminCatalog.listProducts, {});
   const addProduct = useMutation(api.adminCollections.addProduct);
   const removeProduct = useMutation(api.adminCollections.removeProduct);
   const reorderProducts = useMutation(api.adminCollections.reorderProducts);
