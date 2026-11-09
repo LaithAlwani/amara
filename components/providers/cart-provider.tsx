@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { MotionConfig } from "motion/react";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useAnonId } from "@/lib/use-anon-id";
@@ -99,8 +100,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   return (
     <CartContext.Provider value={value}>
+      <MotionConfig reducedMotion="user">
       {children}
       <CartDrawer />
+    </MotionConfig>
     </CartContext.Provider>
   );
 }

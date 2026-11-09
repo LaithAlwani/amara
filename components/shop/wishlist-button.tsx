@@ -64,7 +64,7 @@ export function WishlistButton({
       aria-label={saved ? "Remove from wishlist" : "Save to wishlist"}
       onClick={onClick}
       className={cn(
-        "flex size-9 items-center justify-center rounded-full bg-background/80 text-foreground backdrop-blur transition hover:bg-background",
+        "flex size-11 items-center justify-center rounded-full bg-background/80 text-foreground backdrop-blur transition hover:bg-background",
         className,
       )}
     >

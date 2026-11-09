@@ -194,16 +194,6 @@ export const setProductImages = mutation({
   },
 });
 
-// Quick status flip (activate / unpublish to draft / archive) from the list.
-export const setProductStatus = mutation({
-  args: { productId: v.id("products"), status: productStatus },
-  handler: async (ctx, { productId, status }) => {
-    await requireAdmin(ctx);
-    await ctx.db.patch("products", productId, { status });
-    return { ok: true };
-  },
-});
-
 // --- Variant mutations -------------------------------------------------------
 
 export const createVariant = mutation({

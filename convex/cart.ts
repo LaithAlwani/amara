@@ -193,20 +193,6 @@ export const removeItem = mutation({
   },
 });
 
-export const clearCart = mutation({
-  args: { anonId: v.optional(v.string()) },
-  handler: async (ctx, { anonId }) => {
-    const cart = await findOpenCart(ctx, anonId);
-    if (!cart) return null;
-    const rows = await ctx.db
-      .query("cartItems")
-      .withIndex("by_cart", (q) => q.eq("cartId", cart._id))
-      .take(200);
-    for (const row of rows) await ctx.db.delete("cartItems", row._id);
-    return null;
-  },
-});
-
 // On login, fold the guest's anon cart into the user's open cart, then retire
 // the anon cart. Idempotent: once converted, re-running finds no open anon cart.
 export const mergeAnonCartIntoUser = mutation({

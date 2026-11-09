@@ -1,6 +1,7 @@
 "use client";
 
 import { errorMessage } from "@/lib/error-message";
+import { fieldClass } from "@/lib/utils";
 import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { Trash, SpinnerGap } from "@phosphor-icons/react";
@@ -13,9 +14,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useConfirm } from "@/components/providers/confirm-provider";
 import { formatPrice } from "@/lib/format";
-
-const fieldClass =
-  "w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
 const dateFmt = new Intl.DateTimeFormat("en-CA", {
   year: "numeric",

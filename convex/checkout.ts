@@ -210,24 +210,6 @@ export const quoteCart = query({
   },
 });
 
-export const getActivePickupLocation = query({
-  args: {},
-  handler: async (ctx) => {
-    const pickup = await getActivePickup(ctx);
-    if (!pickup) return null;
-    return {
-      _id: pickup._id,
-      name: pickup.name,
-      addressLine1: pickup.addressLine1,
-      city: pickup.city,
-      province: pickup.province,
-      postalCode: pickup.postalCode,
-      country: pickup.country,
-      instructions: pickup.instructions ?? null,
-    };
-  },
-});
-
 // Create a PENDING order from the cart. No payment is taken here — Phase 6
 // attaches a Stripe Checkout Session and the webhook flips it to paid.
 export const createDraftOrder = mutation({

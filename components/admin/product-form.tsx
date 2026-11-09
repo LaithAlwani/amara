@@ -1,13 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { fieldClass } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { PRODUCT_STATUSES, type ProductStatus } from "./product-status";
-
-const fieldClass =
-  "w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
 export type ProductFormValues = {
   name: string;

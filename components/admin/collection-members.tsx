@@ -1,6 +1,7 @@
 "use client";
 
 import { errorMessage } from "@/lib/error-message";
+import { fieldClass } from "@/lib/utils";
 import { useState } from "react";
 import Image from "next/image";
 import { useQuery, useMutation } from "convex/react";
@@ -125,7 +126,7 @@ export function CollectionMembers({
         <select
           value={picker}
           onChange={(e) => setPicker(e.target.value)}
-          className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          className={fieldClass}
         >
           <option value="">Add a product…</option>
           {available.map((p) => (

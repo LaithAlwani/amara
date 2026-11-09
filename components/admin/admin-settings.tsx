@@ -1,6 +1,7 @@
 "use client";
 
 import { errorMessage } from "@/lib/error-message";
+import { fieldClass } from "@/lib/utils";
 import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { SpinnerGap } from "@phosphor-icons/react";
@@ -9,9 +10,6 @@ import { api } from "@/convex/_generated/api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-
-const fieldClass =
-  "w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
 type Pickup = {
   name: string;
